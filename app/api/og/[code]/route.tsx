@@ -1,4 +1,6 @@
+import jpeg from "jpeg-js";
 import { ImageResponse } from "next/og";
+import { PNG } from "pngjs";
 import { eventTitle, eventType } from "@/lib/eventTypes";
 import { formatEventDate } from "@/lib/format";
 import { fitInside } from "@/lib/imageSize";
@@ -82,19 +84,20 @@ export async function GET(_req: Request, { params }: { params: Promise<{ code: s
 
 /**
  * next/og only makes PNGs, which are huge for photos (600 KB+); WhatsApp skips previews over
- * ~300 KB. Re-encode as JPEG (~50-150 KB). Falls back to the PNG if sharp isn't available.
+ * ~300 KB. Re-encode as JPEG (~50-150 KB) in plain JavaScript, so it works on any server.
+ * Falls back to the PNG if anything goes wrong.
  */
 async function toJpeg(png: ImageResponse): Promise<Response> {
   const buf = Buffer.from(await png.arrayBuffer());
   const headers = { "Cache-Control": "public, max-age=300" };
   try {
-    const sharp = (await import("sharp")).default;
-    const jpg = await sharp(buf).jpeg({ quality: 78, mozjpeg: true }).toBuffer();
-    return new Response(new Uint8Array(jpg), { headers: { ...headers, "Content-Type": "image/jpeg" } });
+    const decoded = PNG.sync.read(buf);
+    const jpg = jpeg.encode({ data: decoded.data, width: decoded.width, height: decoded.height }, 80);
+    return new Response(new Uint8Array(jpg.data), { headers: { ...headers, "Content-Type": "image/jpeg" } });
   } catch (e) {
     console.error("og: jpeg conversion failed, sending png", e);
     // Short reason in a header so a failing deploy can be diagnosed with curl -I.
-    const reason = String(e instanceof Error ? e.message : e).replace(/[^\x20-\x7e]/g, " ").slice(0, 160);
+    const reason = String(e instanceof Error ? e.message : e).replace(/[^ -~]/g, " ").slice(0, 160);
     return new Response(new Uint8Array(buf), {
       headers: { ...headers, "Content-Type": "image/png", "X-Og-Fallback": reason },
     });
