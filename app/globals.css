@@ -1,26 +1,61 @@
 @import "tailwindcss";
 
+/* Dark mode follows the data-theme attribute that the inline script in app/layout.tsx sets before
+   first paint (saved choice, otherwise the phone/laptop's own setting). */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+/* Palette as CSS variables so every utility (bg-ivory, text-ink/60, ...) switches with the theme. */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --page: #faf7f2;
+  --surface: #ffffff;
+  --ink: #2b2622;
+  --on-ink: #ffffff;
+  --blush: #f3e3dc;
+  --sage: #6f826c;
+  --gold: #b08d57;
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  --page: #131110;
+  --surface: #1e1b19;
+  --ink: #f1ebe4;
+  --on-ink: #161311;
+  --blush: #2c2220;
+  --sage: #a3b89f;
+  --gold: #d2ae72;
+  color-scheme: dark;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-inter), system-ui, sans-serif;
+  --font-serif: var(--font-playfair), Georgia, serif;
+
+  --color-ivory: var(--page);
+  --color-surface: var(--surface);
+  --color-ink: var(--ink);
+  --color-on-ink: var(--on-ink);
+  --color-blush: var(--blush);
+  --color-sage: var(--sage);
+  --color-gold: var(--gold);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  -webkit-tap-highlight-color: transparent;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--page);
+  color: var(--ink);
+  font-family: var(--font-sans);
+}
+
+/* html5-qrcode injects its own UI; make the video fill the scanner box */
+#qr-reader video {
+  object-fit: cover;
+  width: 100% !important;
+  height: 100% !important;
+}
+#qr-reader {
+  border: none !important;
 }
