@@ -93,6 +93,10 @@ async function toJpeg(png: ImageResponse): Promise<Response> {
     return new Response(new Uint8Array(jpg), { headers: { ...headers, "Content-Type": "image/jpeg" } });
   } catch (e) {
     console.error("og: jpeg conversion failed, sending png", e);
-    return new Response(new Uint8Array(buf), { headers: { ...headers, "Content-Type": "image/png" } });
+    // Short reason in a header so a failing deploy can be diagnosed with curl -I.
+    const reason = String(e instanceof Error ? e.message : e).replace(/[^\x20-\x7e]/g, " ").slice(0, 160);
+    return new Response(new Uint8Array(buf), {
+      headers: { ...headers, "Content-Type": "image/png", "X-Og-Fallback": reason },
+    });
   }
 }

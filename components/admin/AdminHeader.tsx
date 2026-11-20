@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import { APP_NAME } from "@/lib/site";
+import { APP_NAME, siteUrl } from "@/lib/site";
 
 /** Top bar for organiser pages. Pass `event` on pages inside one event to show its tabs. */
 export function AdminHeader({ event }: { event?: { id: number; name: string } }) {
@@ -54,7 +55,26 @@ export function AdminHeader({ event }: { event?: { id: number; name: string } })
           ))}
         </nav>
       )}
+      <WrongSiteUrlBanner />
     </header>
+  );
+}
+
+/**
+ * Catches a mistyped NEXT_PUBLIC_SITE_URL on the live site (e.g. another project's address):
+ * invite links and QR codes would send guests to the wrong website.
+ */
+function WrongSiteUrlBanner() {
+  const [here, setHere] = useState<string | null>(null);
+  useEffect(() => setHere(window.location.origin), []);
+  const configured = siteUrl();
+  if (!here || /\/\/(localhost|127\.0\.0\.1)/.test(here) || here === configured) return null;
+  return (
+    <p className="bg-red-600 px-4 py-3 text-sm text-white">
+      <b>Stop: invite links point to the wrong website.</b> They go to <b>{configured}</b> but this site is{" "}
+      <b>{here}</b>. In Vercel set <code>NEXT_PUBLIC_SITE_URL</code> to <b>{here}</b>, redeploy, then resend any
+      invites already sent.
+    </p>
   );
 }
 
