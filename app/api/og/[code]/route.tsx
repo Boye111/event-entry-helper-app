@@ -1,7 +1,8 @@
 import { ImageResponse } from "next/og";
 import { eventTitle, eventType } from "@/lib/eventTypes";
 import { formatEventDate } from "@/lib/format";
-import { eventPhotoDataUrl, loadInvite, serifFonts } from "@/lib/invite";
+import { fitInside } from "@/lib/imageSize";
+import { eventPhotoForImage, loadInvite, serifFonts } from "@/lib/invite";
 
 export const dynamic = "force-dynamic";
 
@@ -15,10 +16,12 @@ export async function GET(_req: Request, { params }: { params: Promise<{ code: s
   const data = await loadInvite(code);
   if (!data) return new Response("Not found", { status: 404 });
   const { guest, event } = data;
-  const [photo, fonts] = await Promise.all([eventPhotoDataUrl(event), serifFonts()]);
+  const [photo, fonts] = await Promise.all([eventPhotoForImage(event), serifFonts()]);
+  // Couple photo or flyer: shown whole (never cropped), at most 360x500.
+  const box = fitInside(photo?.size ?? null, 360, 500);
   const when = [formatEventDate(event.event_date), event.venue].filter(Boolean).join(" · ");
 
-  return new ImageResponse(
+  const png = new ImageResponse(
     (
       <div
         style={{
@@ -40,16 +43,14 @@ export async function GET(_req: Request, { params }: { params: Promise<{ code: s
           <div
             style={{
               display: "flex",
-              width: 340,
-              height: 460,
               flexShrink: 0,
-              borderRadius: "170px 170px 16px 16px",
+              borderRadius: 20,
               overflow: "hidden",
               border: "4px solid rgba(176,141,87,0.6)",
             }}
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={photo} width={340} height={460} alt="" style={{ objectFit: "cover" }} />
+            <img src={photo.src} width={box.width} height={box.height} alt="" />
           </div>
         )}
         <div style={{ display: "flex", flexDirection: "column", flex: 1, alignItems: photo ? "flex-start" : "center" }}>
@@ -74,6 +75,24 @@ export async function GET(_req: Request, { params }: { params: Promise<{ code: s
         </div>
       </div>
     ),
-    { width: 1200, height: 630, fonts, headers: { "Cache-Control": "public, max-age=300" } },
+    { width: 1200, height: 630, fonts },
   );
+  return toJpeg(png);
+}
+
+/**
+ * next/og only makes PNGs, which are huge for photos (600 KB+); WhatsApp skips previews over
+ * ~300 KB. Re-encode as JPEG (~50-150 KB). Falls back to the PNG if sharp isn't available.
+ */
+async function toJpeg(png: ImageResponse): Promise<Response> {
+  const buf = Buffer.from(await png.arrayBuffer());
+  const headers = { "Cache-Control": "public, max-age=300" };
+  try {
+    const sharp = (await import("sharp")).default;
+    const jpg = await sharp(buf).jpeg({ quality: 78, mozjpeg: true }).toBuffer();
+    return new Response(new Uint8Array(jpg), { headers: { ...headers, "Content-Type": "image/jpeg" } });
+  } catch (e) {
+    console.error("og: jpeg conversion failed, sending png", e);
+    return new Response(new Uint8Array(buf), { headers: { ...headers, "Content-Type": "image/png" } });
+  }
 }

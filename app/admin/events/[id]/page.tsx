@@ -12,7 +12,7 @@ export default async function EventGuestsPage({ params }: { params: Promise<{ id
   if (!event) notFound();
   return (
     <Dashboard
-      event={{ id: event.id, name: event.name, title: eventTitle(event), type: event.type }}
+      event={{ id: event.id, name: event.name, title: eventTitle(event), type: event.type, hasPhoto: !!event.photo_version }}
       localSiteUrl={siteUrlIsLocal() ? siteUrl() : null}
     />
   );

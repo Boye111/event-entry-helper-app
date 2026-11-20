@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Guest, Stats } from "@/lib/types";
 import { AdminHeader, LocalUrlBanner } from "./AdminHeader";
 import { GuestForm } from "./GuestForm";
@@ -10,7 +11,7 @@ import { StatsBar } from "./StatsBar";
 import { card, primaryBtn, secondaryBtn, warnBox } from "./styles";
 
 type Filter = "all" | "arrived" | "pending";
-type EventInfo = { id: number; name: string; title: string; type: string };
+type EventInfo = { id: number; name: string; title: string; type: string; hasPhoto: boolean };
 
 export function Dashboard({ event, localSiteUrl }: { event: EventInfo; localSiteUrl: string | null }) {
   const [guests, setGuests] = useState<Guest[] | null>(null);
@@ -19,21 +20,30 @@ export function Dashboard({ event, localSiteUrl }: { event: EventInfo; localSite
   const [filter, setFilter] = useState<Filter>("all");
   const [panel, setPanel] = useState<"add" | "import" | null>(null);
   const [editing, setEditing] = useState<Guest | null>(null);
-  const [offline, setOffline] = useState(false);
+  const [problem, setProblem] = useState<string | null>(null);
+  const failures = useRef(0);
 
+  // Refreshes every 10 s. A single failed refresh (phone asleep, network blip) is ignored;
+  // the warning only shows after two in a row, and clears as soon as one works.
   const load = useCallback(async () => {
+    let message: string | null = null;
     try {
       const [g, s] = await Promise.all([
         fetch(`/api/admin/events/${event.id}/guests`, { cache: "no-store" }),
         fetch(`/api/stats?event=${event.id}`, { cache: "no-store" }),
       ]);
       if (g.status === 401 || g.status === 403) return void (window.location.href = "/admin/login");
-      if (g.ok) setGuests((await g.json()).guests);
-      if (s.ok) setStats(await s.json());
-      setOffline(false);
+      if (g.ok && s.ok) {
+        setGuests((await g.json()).guests);
+        setStats(await s.json());
+      } else {
+        message = `The server had a problem (error ${g.ok ? s.status : g.status}). Retrying…`;
+      }
     } catch {
-      setOffline(true);
+      message = "Can't reach the server. Check your internet. Retrying…";
     }
+    failures.current = message ? failures.current + 1 : 0;
+    setProblem(message && failures.current >= 2 ? message : null);
   }, [event.id]);
 
   useEffect(() => {
@@ -69,12 +79,32 @@ export function Dashboard({ event, localSiteUrl }: { event: EventInfo; localSite
       <AdminHeader event={event} />
       <main className="mx-auto max-w-6xl space-y-5 px-4 py-6">
         {localSiteUrl && <LocalUrlBanner siteUrl={localSiteUrl} />}
-        {offline && <p className={warnBox}>Can&apos;t reach the server. Showing the last loaded data.</p>}
+        {problem && (
+          <p className={warnBox}>
+            {problem} {guests && "The list below may be out of date."}
+          </p>
+        )}
 
         <div>
           <h1 className="font-serif text-2xl sm:text-3xl">{event.name}</h1>
           <p className="text-sm text-ink/60">Guests you add here are invited to this event only.</p>
         </div>
+
+        {!event.hasPhoto && (
+          <Link
+            href={`/admin/events/${event.id}/details#photo`}
+            className={`${card} flex items-center gap-3 p-4 hover:ring-ink/25`}
+          >
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blush text-lg" aria-hidden>
+              🖼️
+            </span>
+            <span className="min-w-0 flex-1 text-sm">
+              <b>Add a couple photo or flyer</b>
+              <span className="block text-ink/60">It shows on every invite and in the WhatsApp preview.</span>
+            </span>
+            <span className="text-sm font-medium text-sage">Add →</span>
+          </Link>
+        )}
 
         <StatsBar stats={stats} />
 

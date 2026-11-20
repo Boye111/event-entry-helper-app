@@ -1,7 +1,8 @@
 import { ImageResponse } from "next/og";
 import { eventTitle, eventType } from "@/lib/eventTypes";
 import { formatEventDate, formatEventTime, plural } from "@/lib/format";
-import { eventPhotoDataUrl, loadInvite, serifFonts } from "@/lib/invite";
+import { fitInside } from "@/lib/imageSize";
+import { eventPhotoForImage, loadInvite, serifFonts } from "@/lib/invite";
 import { qrDataUrl } from "@/lib/qr";
 
 export const dynamic = "force-dynamic";
@@ -13,7 +14,10 @@ export async function GET(req: Request, { params }: { params: Promise<{ code: st
   if (!data) return new Response("Not found", { status: 404 });
   const { guest, event: s } = data;
 
-  const [qr, photoSrc, fonts] = await Promise.all([qrDataUrl(code, 520), eventPhotoDataUrl(s), serifFonts()]);
+  const [qr, photo, fonts] = await Promise.all([qrDataUrl(code, 520), eventPhotoForImage(s), serifFonts()]);
+  const photoSrc = photo?.src ?? null;
+  // Couple photo or flyer: shown whole (never cropped), at most 300x300 so the QR stays big.
+  const box = fitInside(photo?.size ?? null, 300, 300);
 
   const date = formatEventDate(s.event_date);
   const time = formatEventTime(s.event_date);
@@ -55,16 +59,14 @@ export async function GET(req: Request, { params }: { params: Promise<{ code: st
             <div
               style={{
                 display: "flex",
-                width: 210,
-                height: 270,
-                borderRadius: "105px 105px 12px 12px",
+                borderRadius: 16,
                 overflow: "hidden",
                 border: "3px solid rgba(176,141,87,0.55)",
                 marginBottom: 28,
               }}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={photoSrc} width={210} height={270} alt="" style={{ objectFit: "cover" }} />
+              <img src={photoSrc} width={box.width} height={box.height} alt="" />
             </div>
           )}
           <div style={{ fontSize: 26, letterSpacing: 8, color: "#7d8f7a", textTransform: "uppercase" }}>

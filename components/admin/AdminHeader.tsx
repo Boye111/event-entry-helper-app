@@ -39,7 +39,7 @@ export function AdminHeader({ event }: { event?: { id: number; name: string } })
       {event && (
         <nav className="mx-auto flex max-w-6xl gap-1 overflow-x-auto px-4 pb-2 [scrollbar-width:none]">
           <Link href="/admin" className="shrink-0 rounded-lg px-3 py-2 text-sm text-ink/60 hover:bg-ink/5">
-            ← All events
+            ← Events
           </Link>
           {tabs.map(([href, label]) => (
             <Link

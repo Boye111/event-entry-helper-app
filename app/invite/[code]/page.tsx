@@ -23,7 +23,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     [formatEventDate(event.event_date), event.venue].filter(Boolean).join(" · ") ||
     "Tap to view your invitation and entry QR code.";
   // Small landscape preview made for WhatsApp (absolute URL via metadataBase = NEXT_PUBLIC_SITE_URL).
-  const image = { url: `/api/og/${code}`, width: 1200, height: 630, type: "image/png", alt: eventTitle(event) };
+  const image = { url: `/api/og/${code}`, width: 1200, height: 630, type: "image/jpeg", alt: eventTitle(event) };
   return {
     title: { absolute: title },
     description,
@@ -61,7 +61,7 @@ export default async function InvitePage({ params }: Props) {
       <ThemeToggle className="absolute right-4 top-[max(1rem,env(safe-area-inset-top))]" />
       <div className="mx-auto w-full max-w-md text-center lg:grid lg:max-w-5xl lg:grid-cols-2 lg:items-center lg:gap-14">
         <div>
-          <EventPhoto publicId={e.public_id} version={e.photo_version} alt={title} className="mb-8 h-72 w-52 sm:h-80 sm:w-60" />
+          <EventPhoto publicId={e.public_id} version={e.photo_version} alt={title} className="mb-8 max-h-[26rem] lg:max-h-[30rem]" />
           <p className="text-[11px] uppercase tracking-[0.3em] text-sage">{eventType(e.type).kicker}</p>
           <h1 className="mt-3 font-serif text-4xl leading-tight sm:text-5xl">{title}</h1>
           <Ornament className="my-6" />

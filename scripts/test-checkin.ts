@@ -142,8 +142,8 @@ async function main() {
     check("invite page has a WhatsApp preview image tag", invite.includes(`/api/og/${g1.code}`));
     const og = await get(`/api/og/${g1.code}`);
     const ogBytes = (await og.arrayBuffer()).byteLength;
-    check(`preview image is a small PNG (${Math.round(ogBytes / 1024)} KB < 300 KB)`,
-      og.status === 200 && og.headers.get("content-type") === "image/png" && ogBytes < 300_000);
+    check(`preview image is a small JPEG (${Math.round(ogBytes / 1024)} KB < 300 KB)`,
+      og.status === 200 && og.headers.get("content-type") === "image/jpeg" && ogBytes < 300_000);
     check("invite card renders", (await get(`/api/card/${g1.code}`)).status === 200);
     for (let i = 0; i < 3; i++) await get(`/invite/${g1.code}`);
 

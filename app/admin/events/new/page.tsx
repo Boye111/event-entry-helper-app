@@ -10,7 +10,7 @@ export default function NewEventPage() {
       <main className="mx-auto max-w-3xl space-y-6 px-4 py-6">
         <div>
           <h1 className="font-serif text-3xl">New event</h1>
-          <p className="mt-1 text-sm text-ink/60">You can change all of this later, and add a photo after creating it.</p>
+          <p className="mt-1 text-sm text-ink/60">You can change all of this later under the event&apos;s Details tab.</p>
         </div>
         <EventForm />
       </main>

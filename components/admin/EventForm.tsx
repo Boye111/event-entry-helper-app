@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { EVENT_TYPES, eventType } from "@/lib/eventTypes";
+import { uploadEventPhoto } from "@/lib/clientImage";
 import { EVENT_TZ, fromEventInput, toEventInput } from "@/lib/format";
 import type { EventDetails } from "@/lib/types";
 import { card, errorBox, input, label, primaryBtn } from "./styles";
@@ -21,6 +22,7 @@ export function EventForm({ event }: { event?: EventDetails }) {
   });
   const [status, setStatus] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [photo, setPhoto] = useState<File | null>(null);
   const t = eventType(form.type);
 
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -45,7 +47,19 @@ export function EventForm({ event }: { event?: EventDetails }) {
       return;
     }
     if (!event) {
-      router.push(`/admin/events/${data.event.id}`);
+      const id = data.event.id as number;
+      if (photo) {
+        setStatus({ ok: true, text: "Event created. Uploading picture…" });
+        try {
+          await uploadEventPhoto(id, photo);
+        } catch (err) {
+          // The event is saved; send them to Details to try the picture again.
+          alert(`Event saved, but the picture didn't upload: ${err instanceof Error ? err.message : "try again"}`);
+          router.push(`/admin/events/${id}/details#photo`);
+          return;
+        }
+      }
+      router.push(`/admin/events/${id}`);
       return;
     }
     setBusy(false);
@@ -101,6 +115,21 @@ export function EventForm({ event }: { event?: EventDetails }) {
         Note for guests
         <textarea className={`${input} mt-1`} rows={3} value={form.note} onChange={set("note")} maxLength={1000} />
       </label>
+      {!event && (
+        <label className={`${label} sm:col-span-2`}>
+          Photo or flyer (optional)
+          <input
+            type="file"
+            accept="image/*"
+            onChange={(e) => setPhoto(e.target.files?.[0] ?? null)}
+            className="mt-1 block w-full text-sm font-normal file:mr-3 file:rounded-lg file:border-0 file:bg-ink/10 file:px-4 file:py-2 file:font-medium file:text-ink"
+          />
+          <span className="mt-1 block text-xs font-normal text-ink/50">
+            A couple photo or the event flyer. Shown on every invite and in the WhatsApp preview. You can change it later
+            under Details.
+          </span>
+        </label>
+      )}
       <div className="flex flex-wrap items-center gap-3 sm:col-span-2">
         <button disabled={busy} className={primaryBtn}>
           {busy ? "Saving…" : event ? "Save changes" : "Create event"}

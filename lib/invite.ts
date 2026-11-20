@@ -2,6 +2,7 @@ import "server-only";
 import { isValidCodeShape } from "./codes";
 import { getEvent, getEventPhoto } from "./events";
 import { getGuestByCode } from "./guests";
+import { imageSize } from "./imageSize";
 import type { EventDetails, Guest } from "./types";
 
 /** Guest + their event for the public invite page / card / preview. Null if the code is unknown. */
@@ -13,10 +14,14 @@ export async function loadInvite(code: string): Promise<{ guest: Guest; event: E
   return event ? { guest, event } : null;
 }
 
-export async function eventPhotoDataUrl(event: EventDetails): Promise<string | null> {
+/** The event photo/flyer as a data URL plus its real size, for next/og images. */
+export async function eventPhotoForImage(
+  event: EventDetails,
+): Promise<{ src: string; size: { width: number; height: number } | null } | null> {
   if (!event.photo_version) return null;
   const photo = await getEventPhoto(event.public_id);
-  return photo ? `data:${photo.type};base64,${photo.data.toString("base64")}` : null;
+  if (!photo) return null;
+  return { src: `data:${photo.type};base64,${photo.data.toString("base64")}`, size: imageSize(photo.data) };
 }
 
 // Loads a Google font as TTF for Satori (next/og). Falls back to the default font if offline.
