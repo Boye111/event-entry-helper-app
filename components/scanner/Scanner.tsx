@@ -18,6 +18,8 @@ type Props = {
 
 export function Scanner({ usherName, eventName, eventId, backHref }: Props) {
   const eventQuery = eventId ? `&event=${eventId}` : "";
+  // Organisers (who pass an eventId) log in at /login; ushers at their personal link.
+  const loginHref = eventId ? "/login" : "/scan/login";
   const [tab, setTab] = useState<"scan" | "search">("scan");
   const [result, setResult] = useState<ScanOutcome | null>(null);
   const [busy, setBusy] = useState(false);
@@ -27,12 +29,12 @@ export function Scanner({ usherName, eventName, eventId, backHref }: Props) {
   const refreshStats = useCallback(async () => {
     try {
       const res = await fetch(eventId ? `/api/stats?event=${eventId}` : "/api/stats", { cache: "no-store" });
-      if (res.status === 401) return void (window.location.href = "/scan/login");
+      if (res.status === 401) return void (window.location.href = loginHref);
       if (res.ok) setStats(await res.json());
     } catch {
       /* offline — keep last value */
     }
-  }, [eventId]);
+  }, [eventId, loginHref]);
 
   useEffect(() => {
     void refreshStats();
@@ -51,7 +53,7 @@ export function Scanner({ usherName, eventName, eventId, backHref }: Props) {
           body: JSON.stringify({ code, eventId: eventId ?? undefined }),
         });
         if (res.status === 401) {
-          window.location.href = "/scan/login";
+          window.location.href = loginHref;
           return;
         }
         const data = await res.json().catch(() => null);
@@ -72,7 +74,7 @@ export function Scanner({ usherName, eventName, eventId, backHref }: Props) {
       setBusy(false);
       void refreshStats();
     },
-    [refreshStats, eventId],
+    [refreshStats, eventId, loginHref],
   );
 
   const onDecode = useCallback(

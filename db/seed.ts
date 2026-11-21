@@ -10,7 +10,10 @@ const guests = [
   { name: "Funmi Adeyemi", phone: null, email: "funmi@example.com", seats: 2, side: "bride", table_no: "2" },
 ];
 
-/** Creates one sample event ("Tunde & Bisi's Wedding (sample)") with 5 fake guests. Safe to run twice. */
+/**
+ * Creates one sample event ("Tunde & Bisi's Wedding (sample)") with 5 fake guests, for LOCAL testing only.
+ * It has no owner: move it to an organiser in /admin, or delete it there. Running it again adds another copy.
+ */
 async function main() {
   const url = process.env.DATABASE_URL;
   if (!url) throw new Error("DATABASE_URL is not set");

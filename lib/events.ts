@@ -74,10 +74,20 @@ export async function deleteEvent(id: number): Promise<boolean> {
 
 /** Super admin: hand an event (with its guests and ushers) to another organiser. */
 export async function moveEvent(id: number, organiserId: number): Promise<boolean> {
-  const rows = await sql`
-    UPDATE events SET organiser_id = ${organiserId}
-    WHERE id = ${id} AND EXISTS (SELECT 1 FROM organisers WHERE id = ${organiserId}) RETURNING id`;
-  return rows.length === 1;
+  return sql.begin(async (tx) => {
+    const rows = await tx`
+      UPDATE events SET organiser_id = ${organiserId}
+      WHERE id = ${id} AND EXISTS (SELECT 1 FROM organisers WHERE id = ${organiserId}) RETURNING id`;
+    // The new owner no longer needs a helper place on their own event.
+    if (rows.length) await tx`DELETE FROM event_helpers WHERE event_id = ${id} AND organiser_id = ${organiserId}`;
+    return rows.length === 1;
+  });
+}
+
+/** Super admin clean-up: deletes every event that has no owner (old data from before accounts). */
+export async function deleteUnownedEvents(): Promise<number> {
+  const rows = await sql`DELETE FROM events WHERE organiser_id IS NULL RETURNING id`;
+  return rows.length;
 }
 
 export async function getEventPhoto(publicId: string): Promise<{ data: Buffer; type: string } | null> {

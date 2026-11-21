@@ -8,7 +8,28 @@ import type { Guest } from "@/lib/types";
 import { emailLink, inviteMessage, whatsappLink } from "@/lib/whatsapp";
 import { pillMuted, pillOk, smallBtn, waBtn } from "./styles";
 
-type Props = { guest: Guest; eventTitle: string; onEdit: () => void; onChanged: () => void };
+type Props = {
+  guest: Guest;
+  eventTitle: string;
+  onEdit: () => void;
+  onChanged: () => void;
+  /** Bulk-delete mode: show a checkbox */
+  selectable?: boolean;
+  selected?: boolean;
+  onToggle?: () => void;
+};
+
+function Pick({ guest, selected, onToggle }: Props) {
+  return (
+    <input
+      type="checkbox"
+      className="h-5 w-5 shrink-0 accent-red-600"
+      checked={!!selected}
+      onChange={onToggle}
+      aria-label={`Select ${guest.name}`}
+    />
+  );
+}
 
 function details(g: Guest) {
   return [g.phone, g.email, g.side, g.table_no && `Table ${g.table_no}`].filter(Boolean).join(" · ");
@@ -25,7 +46,7 @@ function Status({ g }: { g: Guest }) {
   );
 }
 
-function Actions({ guest: g, eventTitle, onEdit, onChanged }: Props) {
+function Actions({ guest: g, eventTitle, onEdit, onChanged }: Omit<Props, "selectable" | "selected" | "onToggle">) {
   const [copied, setCopied] = useState(false);
   const link = joinInvite(useSiteUrl(), g.code);
   const message = inviteMessage({ name: g.name, event: eventTitle, link, seats: g.seats });
@@ -95,7 +116,12 @@ function Actions({ guest: g, eventTitle, onEdit, onChanged }: Props) {
 export function GuestRow(props: Props) {
   const g = props.guest;
   return (
-    <tr className="border-t border-ink/5 align-top">
+    <tr className={`border-t border-ink/5 align-top ${props.selected ? "bg-red-50/60 dark:bg-red-950/20" : ""}`}>
+      {props.selectable && (
+        <td className="py-3 pl-3">
+          <Pick {...props} />
+        </td>
+      )}
       <td className="px-3 py-3">
         <p className="font-medium">{g.name}</p>
         <p className="break-words text-xs text-ink/60">{details(g)}</p>
@@ -104,9 +130,7 @@ export function GuestRow(props: Props) {
       <td className="px-3 py-3">
         <Status g={g} />
       </td>
-      <td className="px-3 py-3">
-        <Actions {...props} />
-      </td>
+      <td className="px-3 py-3">{!props.selectable && <Actions {...props} />}</td>
     </tr>
   );
 }
@@ -115,9 +139,10 @@ export function GuestRow(props: Props) {
 export function GuestCard(props: Props) {
   const g = props.guest;
   return (
-    <li className="border-t border-ink/5 p-4 first:border-t-0">
+    <li className={`border-t border-ink/5 p-4 first:border-t-0 ${props.selected ? "bg-red-50/60 dark:bg-red-950/20" : ""}`}>
       <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
+        {props.selectable && <Pick {...props} />}
+        <div className="min-w-0 flex-1">
           <p className="font-medium">
             {g.name} <span className="text-sm font-normal text-ink/50">· {g.seats} seat{g.seats === 1 ? "" : "s"}</span>
           </p>
@@ -127,9 +152,11 @@ export function GuestCard(props: Props) {
           <Status g={g} />
         </div>
       </div>
-      <div className="mt-3">
-        <Actions {...props} />
-      </div>
+      {!props.selectable && (
+        <div className="mt-3">
+          <Actions {...props} />
+        </div>
+      )}
     </li>
   );
 }

@@ -74,6 +74,15 @@ async function main() {
   const usher = (await (await post(`/api/org/events/${ev.id}/ushers`, A, { name: "Usher A" })).json()).usher;
   check("A creates event, guest, usher", !!ev?.id && !!guest?.id && !!usher?.id);
 
+  // --- deleting guests: one, selected, and other events' ids are ignored
+  const addGuest = async (name: string) =>
+    (await (await post(`/api/org/events/${ev.id}/guests`, A, { name, seats: 1 })).json()).guest as { id: number };
+  const [g2, g3, g4] = [await addGuest("Del 1"), await addGuest("Del 2"), await addGuest("Del 3")];
+  check("owner deletes one guest", (await send("DELETE", `/api/org/guests/${g2.id}`, A)).status === 200);
+  const bulk = await (await post(`/api/org/events/${ev.id}/guests/delete`, A, { ids: [g3.id, g4.id] })).json();
+  check("owner deletes selected guests", bulk.deleted === 2, bulk);
+  check("bulk delete with nothing chosen -> 400", (await post(`/api/org/events/${ev.id}/guests/delete`, A, {})).status === 400);
+
   // --- B can't see or touch any of it (always 404, never data)
   const bList = (await (await get("/api/org/events", B)).json()).events as { id: number }[];
   check("B's event list doesn't include A's event", Array.isArray(bList) && !bList.some((e) => e.id === ev.id));
@@ -94,6 +103,8 @@ async function main() {
     ["PATCH", `/api/org/guests/${guest.id}`, "edit guest", guestBody],
     ["POST", `/api/org/guests/${guest.id}/undo`, "undo check-in"],
     ["DELETE", `/api/org/guests/${guest.id}`, "delete guest"],
+    ["POST", `/api/org/events/${ev.id}/guests/delete`, "bulk delete selected guests", { ids: [guest.id] }],
+    ["POST", `/api/org/events/${ev.id}/guests/delete`, "delete all guests", { all: true }],
     ["PATCH", `/api/org/ushers/${usher.id}`, "turn off usher", { active: false }],
     ["POST", `/api/org/ushers/${usher.id}/reset`, "reset usher"],
     ["DELETE", `/api/org/ushers/${usher.id}`, "delete usher"],
@@ -191,9 +202,18 @@ async function main() {
   check("now they can create events", (await post("/api/org/events", H, { name: "ZZ H's own", type: "wedding" })).status === 201);
   check("delete helper account", (await send("DELETE", `/api/admin/organisers/${hId}`, SUPER)).status === 200);
 
+  // --- super admin deletes guests and events
+  const superAll = await (await post(`/api/org/events/${ev.id}/guests/delete`, SUPER, { all: true })).json();
+  check("super admin can delete all guests of an event", superAll.deleted >= 1, superAll);
+  check("guest list is now empty", ((await (await get(`/api/org/events/${ev.id}/guests`, SUPER)).json()).guests ?? [1]).length === 0);
+  check("organiser can't use the no-owner clean-up -> 403", (await post("/api/admin/events/unowned", B, { confirm: "DELETE" })).status === 403);
+  check("no-owner clean-up needs DELETE typed -> 400", (await post("/api/admin/events/unowned", SUPER, {})).status === 400);
+  check("super admin deletes the event", (await send("DELETE", `/api/org/events/${ev.id}`, SUPER)).status === 200);
+  check("deleted event is gone for its owner", (await get(`/api/org/events/${ev.id}/guests`, B)).status === 404);
+
   // --- cleanup: deleting organisers deletes their events
   check("delete A", (await send("DELETE", `/api/admin/organisers/${aId}`, SUPER)).status === 200);
-  check("delete B (and the moved event)", (await send("DELETE", `/api/admin/organisers/${bId}`, SUPER)).status === 200);
+  check("delete B", (await send("DELETE", `/api/admin/organisers/${bId}`, SUPER)).status === 200);
   check("B's event is gone", (await get(`/api/org/events/${ev.id}/guests`, SUPER)).status === 404);
   const inviteOk = await (await get(`/invite/${guest.code}`, "")).text();
   check("its invite link stops working", inviteOk.includes("not found") || inviteOk.includes("Not found"));

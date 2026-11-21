@@ -5,14 +5,17 @@
 _Last updated: 2026-11-21. Update this section at the end of every working session._
 
 **Status:** multi-organiser app with super admin and per-event helpers is built and tested locally
-(`npm run test:organisers` 85 checks, `npm run test:checkin` 50 checks, all passing on a production build).
+(`npm run test:organisers` 96 checks, `npm run test:checkin` 50 checks, all passing on a production build).
+Latest additions: bulk guest delete (selected / all), super admin can delete any event and has a one-click
+"delete all events with no owner" clean-up, plus redirect fixes (super admin logout, scanner, account page).
 Multi-organiser + helpers + super admin was pushed to `main` as `d078da5` on 2026-11-21 (Vercel deploys from
 `main`). Not yet confirmed by the owner on the live site or a real phone.
 
 **Before deploying the multi-organiser version:** run `npm run db:migrate` against the Supabase DB first
 (adds roles, invites, event ownership, event_helpers), then push. Everyone is logged out once.
 After deploy: log in at `/admin` with `ADMIN_PASSWORD` → create an invite link for the organiser the app was
-built for → once they sign up, **Move** the existing events (which have no owner) to them under "All events".
+built for → under "All events", **Move** any old event worth keeping, then **Delete all events with no owner**
+to clear old test events and their guests (the owner expects old test data to be removed, not kept).
 The account created earlier on the live site with the old setup page is now an ordinary organiser account
 (delete it from `/admin` if it isn't needed).
 
@@ -109,10 +112,10 @@ Never commit `.env`. `.env.example` lists every key. `NEXT_PUBLIC_SITE_URL` is l
 - `/` landing (no data). App name = `APP_NAME` in `lib/site.ts`.
 - `/login`, `/signup/[token]` (organiser or helper invite; logged-in accounts can "Join as …"), `/admin/login`.
 - `/admin` super admin: overview numbers, organiser invite links, accounts (turn off/on, make organiser/helper,
-  reset password, delete), all events (open, move to another organiser).
+  reset password, delete), all events (open, move to another organiser, delete, delete all with no owner).
 - `/dashboard` an account's events (owned + helping); `/dashboard/events/new` (organisers only);
   `/dashboard/events/[id]` guests (stats, search, add, Excel/CSV import with preview, WhatsApp/email invite,
-  QR/card download, undo check-in, CSV export); `/[id]/ushers`; `/[id]/team` (owner, helpers, helper invite
+  QR/card download, undo check-in, delete one / selected / all, CSV export); `/[id]/ushers`; `/[id]/team` (owner, helpers, helper invite
   links); `/[id]/details` (edit, photo, delete by typing DELETE); `/dashboard/account` (password, email).
 - `/invite/[code]` public read-only invite + big QR + Open Graph preview. Never checks in.
 - `/scan` full-screen camera scanner + manual search, locked to one event; results: ADMIT / ALREADY USED / WRONG EVENT / INVALID.
@@ -145,6 +148,11 @@ Normalise for `wa.me`: strip spaces/dashes/`+`; `0XXXXXXXXXX` (11 digits) → `2
   (PowerShell: `$env:DATABASE_URL="<pooler url>"; npm run db:migrate`).
 - Push to GitHub `main` → Vercel deploys automatically.
 - Before an event: rehearsal with 2–3 phones, export CSV backup, ushers log in beforehand, mobile data / MiFi.
+
+## Working with the owner
+- When the data model changes, old test data (events/guests from earlier versions) should be cleaned up or a
+  clean-up tool provided; don't leave it lying around. Ask before deleting anything on the live database.
+- The owner reviews on a phone; check every new screen works on a narrow screen.
 
 ## Coding conventions
 - TypeScript strict. Validate all inputs with zod. Plain-English error messages (no stack traces on screen).

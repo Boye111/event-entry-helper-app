@@ -160,7 +160,7 @@ export async function listOrganisers(): Promise<OrganiserSummary[]> {
       (SELECT count(*)::int FROM guests g JOIN events e ON e.id = g.event_id WHERE e.organiser_id = o.id) AS guests,
       (SELECT count(g.checked_in_at)::int FROM guests g JOIN events e ON e.id = g.event_id WHERE e.organiser_id = o.id) AS arrived
     FROM organisers o LEFT JOIN invites i ON i.id = o.invite_id
-    ORDER BY o.role, o.created_at`;
+    ORDER BY (o.role = 'organiser') DESC, o.created_at`;
 }
 
 /** Turning off also logs them out everywhere. */

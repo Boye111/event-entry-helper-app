@@ -102,6 +102,17 @@ export async function deleteGuest(id: number): Promise<boolean> {
   return rows.length === 1;
 }
 
+/**
+ * Deletes several guests of ONE event (ids from other events are ignored), or all of them when `ids` is null.
+ * Returns how many were deleted.
+ */
+export async function deleteGuests(eventId: number, ids: number[] | null): Promise<number> {
+  const rows = ids
+    ? await sql`DELETE FROM guests WHERE event_id = ${eventId} AND id = ANY(${ids}::int[]) RETURNING id`
+    : await sql`DELETE FROM guests WHERE event_id = ${eventId} RETURNING id`;
+  return rows.length;
+}
+
 export async function undoCheckIn(id: number): Promise<Guest | null> {
   const rows = await sql<Guest[]>`
     UPDATE guests SET checked_in_at = NULL, checked_in_by = NULL, checked_in_usher_id = NULL

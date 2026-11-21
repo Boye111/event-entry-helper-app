@@ -369,17 +369,68 @@ function OrganiserCard({ o }: { o: OrganiserSummary }) {
 // ------------------------------------------------------------------ all events
 
 function AllEvents({ events, organisers }: { events: EventLite[]; organisers: OrganiserSummary[] }) {
+  const act = useAction();
   const [q, setQ] = useState("");
+  const [cleanup, setCleanup] = useState(false);
+  const [typed, setTyped] = useState("");
+  const [error, setError] = useState<string | null>(null);
   const term = q.trim().toLowerCase();
   const shown = term
     ? events.filter((e) => e.name.toLowerCase().includes(term) || (e.owner ?? "").includes(term))
     : events;
+  const unowned = events.filter((e) => e.organiser_id === null);
+
   return (
     <section>
       <h2 className={sectionTitle}>All events</h2>
       <p className="mt-1 text-sm text-ink/60">
-        Open any event to check on it or help. Use <b>Move</b> to hand an event to another organiser.
+        Open any event to check on it or help. <b>Move</b> hands an event to another organiser; <b>Delete</b> removes it
+        with all its guests and ushers.
       </p>
+
+      {unowned.length > 0 && (
+        <div className="mt-3 rounded-lg bg-amber-100 p-3 text-sm text-amber-900 dark:bg-amber-900/30 dark:text-amber-200">
+          <p>
+            <b>{plural(unowned.length, "event")} with no owner</b> (old data from before accounts, or test events). Move
+            the ones you want to keep, then delete the rest.
+          </p>
+          {!cleanup ? (
+            <button className={`${smallBtn} mt-2 bg-surface text-red-600`} onClick={() => setCleanup(true)}>
+              Delete all events with no owner…
+            </button>
+          ) : (
+            <div className="mt-2 space-y-2">
+              <p>
+                Deletes {unowned.map((e) => `"${e.name}"`).join(", ")} with{" "}
+                {plural(unowned.reduce((n, e) => n + e.guests, 0), "guest")}. Type <b>DELETE</b> to confirm.
+              </p>
+              <input className={input} value={typed} onChange={(e) => setTyped(e.target.value)} autoCapitalize="characters" autoComplete="off" />
+              <div className="flex gap-2">
+                <button
+                  className="rounded-lg bg-red-600 px-4 py-2 font-semibold text-white disabled:opacity-40"
+                  disabled={typed.trim().toUpperCase() !== "DELETE"}
+                  onClick={async () => {
+                    setError(null);
+                    await act("/api/admin/events/unowned", "POST", { confirm: "DELETE" })
+                      .then(() => {
+                        setCleanup(false);
+                        setTyped("");
+                      })
+                      .catch((err) => setError(err.message));
+                  }}
+                >
+                  Delete forever
+                </button>
+                <button className={smallBtn} onClick={() => setCleanup(false)}>
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+          {error && <p className={`${errorBox} mt-2`}>{error}</p>}
+        </div>
+      )}
+
       <input className={`${input} mt-3 max-w-sm`} placeholder="Search event or organiser" value={q} onChange={(e) => setQ(e.target.value)} />
       <ul className="mt-3 space-y-2">
         {shown.length === 0 && <li className="text-sm text-ink/50">No events.</li>}
@@ -395,6 +446,8 @@ function EventRow({ e, organisers }: { e: EventLite; organisers: OrganiserSummar
   const act = useAction();
   const [to, setTo] = useState<number>(e.organiser_id ?? 0);
   const [error, setError] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [typed, setTyped] = useState("");
   const changed = to !== 0 && to !== e.organiser_id;
 
   return (
@@ -404,11 +457,11 @@ function EventRow({ e, organisers }: { e: EventLite; organisers: OrganiserSummar
           {e.name}
         </Link>
         <p className="text-xs text-ink/50">
-          {eventType(e.type).label} · {formatEventDate(e.event_date) ?? "No date"} · {plural(e.guests, "guest")} ·{" "}
-          {e.arrived} checked in
+          {e.owner ?? "No owner"} · {eventType(e.type).label} · {formatEventDate(e.event_date) ?? "No date"} ·{" "}
+          {plural(e.guests, "guest")} · {e.arrived} checked in
         </p>
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <select className={`${input} w-auto py-1.5 text-sm`} value={to} onChange={(ev) => setTo(Number(ev.target.value))} aria-label="Owner">
           {e.organiser_id === null && <option value={0}>No owner</option>}
           {organisers.map((o) => (
@@ -430,7 +483,29 @@ function EventRow({ e, organisers }: { e: EventLite; organisers: OrganiserSummar
             Move
           </button>
         )}
+        <button className={`${smallBtn} text-red-600`} onClick={() => setConfirmDelete(!confirmDelete)}>
+          Delete…
+        </button>
       </div>
+      {confirmDelete && (
+        <div className="w-full space-y-2 rounded-lg p-3 text-sm ring-1 ring-red-300 dark:ring-red-900">
+          <p>
+            Deletes <b>{e.name}</b> with {plural(e.guests, "guest")}, its ushers and helpers. Invite links and QR codes stop
+            working. Type <b>DELETE</b> to confirm.
+          </p>
+          <input className={input} value={typed} onChange={(ev) => setTyped(ev.target.value)} autoCapitalize="characters" autoComplete="off" />
+          <button
+            className="rounded-lg bg-red-600 px-4 py-2 font-semibold text-white disabled:opacity-40"
+            disabled={typed.trim().toUpperCase() !== "DELETE"}
+            onClick={async () => {
+              setError(null);
+              await act(`/api/org/events/${e.id}`, "DELETE").catch((err) => setError(err.message));
+            }}
+          >
+            Delete forever
+          </button>
+        </div>
+      )}
       {error && <p className={`${errorBox} w-full`}>{error}</p>}
     </li>
   );

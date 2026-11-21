@@ -15,7 +15,7 @@ follows the device setting until you pick one).
 | `/signup/<link>` | Invited person | One-time invite link: choose username, email, password (or "Join as …" if already logged in) |
 | `/dashboard` | Organiser / helper | Your events (owned, and ones you help with). Delete an owned event from its card |
 | `/dashboard/events/new` | Organiser | Create an event: kind, name, title on invite, date, venue, dress code, note |
-| `/dashboard/events/<id>` | Owner / helper | **Guests**: stats, add, Excel/CSV import, WhatsApp/email invite, QR/card download, undo, CSV export |
+| `/dashboard/events/<id>` | Owner / helper | **Guests**: stats, add, Excel/CSV import, WhatsApp/email invite, QR/card download, undo, delete (one, selected or all), CSV export |
 | `/dashboard/events/<id>/ushers` | Owner / helper | Ushers: personal link + PIN, turn off / reset, who admitted how many |
 | `/dashboard/events/<id>/team` | Owner (helpers can view) | Invite helpers with a one-time link, remove helpers |
 | `/dashboard/events/<id>/details` | Owner / helper | Edit the event, upload the photo; owner can delete the event |
@@ -103,6 +103,8 @@ Neon works the same way: use its **pooled** connection string as `DATABASE_URL`.
   any problems before anything is saved. Excel phone numbers that lost their leading 0 are fixed automatically.
 - **WhatsApp** opens WhatsApp with the invite message for that guest. **Email** (shown when the guest has an email)
   opens your own email app with the invite ready to send. Nothing is sent automatically yet.
+- **Delete guests:** one at a time (**Delete** on the guest), or **Select guests to delete** → tick them →
+  **Delete N**, or **Delete all guests…** (type DELETE). Deleted guests' QR codes stop working.
 - **Export CSV backup** includes every guest's code, link, email and check-in status.
 
 ## Ushers
@@ -131,7 +133,8 @@ ever sees **their own** events (another organiser's event is simply "not found")
   - **Organisers & helpers:** events owned, events helping on, last login. **Turn off** (logged out at once),
     **Make organiser / Make helper**, **Reset password** (temporary password shown once, to send them),
     **Delete** (type DELETE; removes the events they own too).
-  - **All events:** open any event to check on it or help, and **Move** an event to another organiser.
+  - **All events:** open any event to check on it or help, **Move** it to another organiser, or **Delete** it.
+    Old events with no owner can be cleared in one go with **Delete all events with no owner** (type DELETE).
 - **Organisers** sign up from the invite link, then log in any time from any device. **Account** changes password
   or email; a new password logs out their other devices.
 - **Helpers** (co-planners): on an event's **Team** tab the owner makes a one-time helper link. The helper signs

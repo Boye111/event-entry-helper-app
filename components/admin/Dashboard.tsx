@@ -8,7 +8,7 @@ import { GuestForm } from "./GuestForm";
 import { GuestImport } from "./GuestImport";
 import { GuestCard, GuestRow } from "./GuestRow";
 import { StatsBar } from "./StatsBar";
-import { card, primaryBtn, secondaryBtn, warnBox } from "./styles";
+import { card, errorBox, input, primaryBtn, secondaryBtn, smallBtn, warnBox } from "./styles";
 
 type Filter = "all" | "arrived" | "pending";
 type EventInfo = { id: number; name: string; title: string; type: string; hasPhoto: boolean };
@@ -30,6 +30,13 @@ export function Dashboard({
   const [editing, setEditing] = useState<Guest | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const failures = useRef(0);
+  // Bulk delete
+  const [selecting, setSelecting] = useState(false);
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [deleteAll, setDeleteAll] = useState(false);
+  const [typed, setTyped] = useState("");
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [bulkError, setBulkError] = useState<string | null>(null);
 
   // Refreshes every 10 s. A single failed refresh (phone asleep, network blip) is ignored;
   // the warning only shows after two in a row, and clears as soon as one works.
@@ -80,7 +87,39 @@ export function Dashboard({
     eventTitle: event.title,
     onEdit: () => setEditing(g),
     onChanged: load,
+    selectable: selecting,
+    selected: selected.has(g.id),
+    onToggle: () =>
+      setSelected((s) => {
+        const n = new Set(s);
+        if (n.has(g.id)) n.delete(g.id);
+        else n.add(g.id);
+        return n;
+      }),
   });
+
+  function stopSelecting() {
+    setSelecting(false);
+    setSelected(new Set());
+    setBulkError(null);
+  }
+
+  /** ids = selected guests; null = every guest of this event. */
+  async function bulkDelete(ids: number[] | null) {
+    setBulkBusy(true);
+    setBulkError(null);
+    const res = await fetch(`/api/org/events/${event.id}/guests/delete`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(ids ? { ids } : { all: true }),
+    }).catch(() => null);
+    setBulkBusy(false);
+    if (!res?.ok) return setBulkError("Could not delete. Check your internet and try again.");
+    stopSelecting();
+    setDeleteAll(false);
+    setTyped("");
+    void load();
+  }
 
   return (
     <div className="min-h-dvh bg-ivory">
@@ -166,6 +205,67 @@ export function Dashboard({
             </div>
           </div>
 
+          {guests && guests.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2 border-b border-ink/10 px-3 py-2 text-sm">
+              {!selecting ? (
+                <>
+                  <button className={smallBtn} onClick={() => setSelecting(true)}>
+                    Select guests to delete
+                  </button>
+                  <button className={`${smallBtn} text-red-600 dark:text-red-400`} onClick={() => setDeleteAll(!deleteAll)}>
+                    Delete all guests…
+                  </button>
+                </>
+              ) : (
+                <>
+                  <span className="font-medium">{selected.size} selected</span>
+                  <button className={smallBtn} onClick={() => setSelected(new Set(visible.map((g) => g.id)))}>
+                    Select all {visible.length} shown
+                  </button>
+                  <button className={smallBtn} onClick={() => setSelected(new Set())}>
+                    Clear
+                  </button>
+                  <button
+                    className="rounded-md bg-red-600 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-40"
+                    disabled={!selected.size || bulkBusy}
+                    onClick={() => {
+                      if (confirm(`Delete ${selected.size} guest(s)? Their QR codes stop working. This cannot be undone.`))
+                        void bulkDelete([...selected]);
+                    }}
+                  >
+                    {bulkBusy ? "Deleting…" : `Delete ${selected.size}`}
+                  </button>
+                  <button className={smallBtn} onClick={stopSelecting}>
+                    Done
+                  </button>
+                </>
+              )}
+              {deleteAll && !selecting && (
+                <div className="w-full space-y-2 rounded-lg p-3 ring-1 ring-red-300 dark:ring-red-900">
+                  <p>
+                    Deletes all <b>{guests.length}</b> guests of this event; every invite link and QR stops working. Export
+                    a CSV backup first. Type <b>DELETE</b> to confirm.
+                  </p>
+                  <input
+                    className={input}
+                    value={typed}
+                    onChange={(e) => setTyped(e.target.value)}
+                    autoCapitalize="characters"
+                    autoComplete="off"
+                  />
+                  <button
+                    className="rounded-lg bg-red-600 px-4 py-2 font-semibold text-white disabled:opacity-40"
+                    disabled={typed.trim().toUpperCase() !== "DELETE" || bulkBusy}
+                    onClick={() => void bulkDelete(null)}
+                  >
+                    {bulkBusy ? "Deleting…" : "Delete all guests"}
+                  </button>
+                </div>
+              )}
+              {bulkError && <p className={`${errorBox} w-full`}>{bulkError}</p>}
+            </div>
+          )}
+
           {/* Phones: cards. Tablets and up: table. */}
           <ul className="md:hidden">
             {visible.map((g) => (
@@ -176,6 +276,7 @@ export function Dashboard({
             <table className="w-full text-sm">
               <thead className="text-left text-xs uppercase tracking-wider text-ink/50">
                 <tr>
+                  {selecting && <th className="w-8 pl-3" />}
                   <th className="px-3 py-2 font-medium">Guest</th>
                   <th className="px-3 py-2 font-medium">Seats</th>
                   <th className="px-3 py-2 font-medium">Status</th>

@@ -47,7 +47,7 @@ export function AdminHeader({ event, viewer = "organiser" }: { event?: { id: num
         <button
           onClick={async () => {
             await fetch("/api/auth/logout", { method: "POST" });
-            window.location.href = viewer === "super" ? "/login" : "/login";
+            window.location.href = viewer === "super" ? "/admin/login" : "/login";
           }}
           className="rounded-lg px-3 py-2 text-sm text-ink/60 hover:bg-ink/5"
         >

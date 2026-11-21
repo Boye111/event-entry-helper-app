@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 export default async function AccountPage() {
   const session = await pageOrganiser();
   const org = await getOrganiser(session.organiserId!);
-  if (!org) redirect("/admin/login");
+  if (!org) redirect("/login");
   return (
     <div className="min-h-dvh bg-ivory">
       <AdminHeader />
