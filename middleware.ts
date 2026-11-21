@@ -49,6 +49,6 @@ export const config = {
     "/api/org/:path*",
     "/api/checkin",
     "/api/guests/:path*",
-    "/api/stats",
+    "/api/headcount",
   ],
 };

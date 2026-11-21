@@ -23,7 +23,6 @@ export function Dashboard({
   viewer: Viewer;
 }) {
   const [guests, setGuests] = useState<Guest[] | null>(null);
-  const [stats, setStats] = useState<Stats | null>(null);
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
   const [panel, setPanel] = useState<"add" | "import" | null>(null);
@@ -38,34 +37,45 @@ export function Dashboard({
   const [bulkBusy, setBulkBusy] = useState(false);
   const [bulkError, setBulkError] = useState<string | null>(null);
 
-  // Refreshes every 10 s. A single failed refresh (phone asleep, network blip) is ignored;
-  // the warning only shows after two in a row, and clears as soon as one works.
+  // Refreshes every 10 s with ONE request; the numbers at the top are counted from the same list.
+  // A single failed refresh (phone asleep, network blip) is ignored; the warning only shows after
+  // two in a row, and clears as soon as one works.
   const load = useCallback(async () => {
     let message: string | null = null;
+    let res: Response | null = null;
     try {
-      const [g, s] = await Promise.all([
-        fetch(`/api/org/events/${event.id}/guests`, { cache: "no-store" }),
-        fetch(`/api/stats?event=${event.id}`, { cache: "no-store" }),
-      ]);
-      if (g.status === 401 || g.status === 403) return void (window.location.href = "/login");
-      if (g.ok && s.ok) {
-        setGuests((await g.json()).guests);
-        setStats(await s.json());
-      } else {
-        message = `The server had a problem (error ${g.ok ? s.status : g.status}). Retrying…`;
-      }
+      res = await fetch(`/api/org/events/${event.id}/guests`, { cache: "no-store" });
     } catch {
-      message = "Can't reach the server. Check your internet. Retrying…";
+      message = navigator.onLine
+        ? "Couldn't load the guest list (the connection dropped, or a browser ad blocker stopped it). Retrying…"
+        : "You're offline. Check your internet. Retrying…";
+    }
+    if (res) {
+      if (res.status === 401) return void (window.location.href = viewer === "super" ? "/admin/login" : "/login");
+      const data = await res.json().catch(() => null);
+      if (res.ok && Array.isArray(data?.guests)) setGuests(data.guests);
+      else message = `${data?.error ?? "The server had a problem"} (error ${res.status}). Retrying…`;
     }
     failures.current = message ? failures.current + 1 : 0;
     setProblem(message && failures.current >= 2 ? message : null);
-  }, [event.id]);
+  }, [event.id, viewer]);
 
   useEffect(() => {
     void load();
     const t = setInterval(load, 10_000);
     return () => clearInterval(t);
   }, [load]);
+
+  const stats = useMemo<Stats | null>(
+    () =>
+      guests && {
+        guests: guests.length,
+        seats: guests.reduce((n, g) => n + g.seats, 0),
+        arrived_guests: guests.filter((g) => g.checked_in_at).length,
+        arrived_seats: guests.reduce((n, g) => n + (g.checked_in_at ? g.seats : 0), 0),
+      },
+    [guests],
+  );
 
   const visible = useMemo(() => {
     const term = q.trim().toLowerCase();

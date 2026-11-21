@@ -28,7 +28,7 @@ export function Scanner({ usherName, eventName, eventId, backHref }: Props) {
 
   const refreshStats = useCallback(async () => {
     try {
-      const res = await fetch(eventId ? `/api/stats?event=${eventId}` : "/api/stats", { cache: "no-store" });
+      const res = await fetch(eventId ? `/api/headcount?event=${eventId}` : "/api/headcount", { cache: "no-store" });
       if (res.status === 401) return void (window.location.href = loginHref);
       if (res.ok) setStats(await res.json());
     } catch {

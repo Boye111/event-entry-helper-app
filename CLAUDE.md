@@ -121,8 +121,11 @@ Never commit `.env`. `.env.example` lists every key. `NEXT_PUBLIC_SITE_URL` is l
 - `/scan` full-screen camera scanner + manual search, locked to one event; results: ADMIT / ALREADY USED / WRONG EVENT / INVALID.
 - APIs: `/api/auth/{login,admin,signup,join,usher,logout}`, `/api/org/...` (events, guests, ushers, team,
   invites, account), `/api/admin/...` (invites, organisers, events move), `/api/checkin`, `/api/guests/search`,
-  `/api/stats`, `/api/qr/[code]`, `/api/card/[code]`, `/api/og/[code]`, `/api/photo/[publicId]`.
+  `/api/headcount`, `/api/qr/[code]`, `/api/card/[code]`, `/api/og/[code]`, `/api/photo/[publicId]`.
 - Rate limits (in-memory per IP): logins, sign-up, check-in.
+- **Don't name API paths with words ad blockers block** (`stats`, `analytics`, `track`, `metrics`, `pixel`,
+  `beacon`): blocked requests look like "Can't reach the server". The headcount route was renamed from
+  `/api/stats` for this reason; the organiser guest page counts from its single guest-list request.
 
 ## UI / design
 - Mobile-first, big tap targets; scanner result screens fill the screen with strong colours.

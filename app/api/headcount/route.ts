@@ -4,7 +4,10 @@ import { getStats } from "@/lib/guests";
 
 export const dynamic = "force-dynamic";
 
-/** ?event=<id> is used by organisers / helpers / super admin; ushers always get their own event's numbers. */
+/**
+ * Live headcount for the scanner. (Called "headcount", not "stats": ad blockers block URLs like /api/stats.)
+ * ?event=<id> is used by organisers / helpers / super admin; ushers always get their own event's numbers.
+ */
 export async function GET(req: Request) {
   const auth = await requireRole("scan");
   if (auth.error) return auth.error;

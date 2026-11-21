@@ -45,7 +45,7 @@ type U = { id: number; token: string; pin: string };
 async function main() {
   // --- auth guards
   check("POST /api/checkin without login -> 401", (await post("/api/checkin", "", { code: "x" })).status === 401);
-  check("GET /api/stats without login -> 401", (await get("/api/stats")).status === 401);
+  check("GET /api/headcount without login -> 401", (await get("/api/headcount")).status === 401);
   check("GET /api/org/events without login -> 401", (await get("/api/org/events")).status === 401);
   const adminPage = await fetch(`${BASE}/dashboard`, { redirect: "manual" });
   check("/dashboard without login redirects", adminPage.status === 307 || adminPage.status === 308);
@@ -111,7 +111,7 @@ async function main() {
     check("usher cannot list events -> 403", (await get("/api/org/events", usherA)).status === 403);
     check("usher cannot list guests -> 403", (await get(`/api/org/events/${evA.id}/guests`, usherA)).status === 403);
 
-    const statsAs = (cookie: string, q = "") => get(`/api/stats${q}`, cookie).then((r) => r.status);
+    const statsAs = (cookie: string, q = "") => get(`/api/headcount${q}`, cookie).then((r) => r.status);
     check("usher C can use the scanner API", (await statsAs(usherC)) === 200);
     await send("PATCH", `/api/org/ushers/${uC.id}`, admin, { active: false });
     check("turned-off usher is logged out immediately -> 401", (await statsAs(usherC)) === 401);
@@ -173,7 +173,7 @@ async function main() {
     check("wrong_event reveals no guest data", !("guest" in r6));
     const searchA = (await (await get(`/api/guests/search?q=ZZ%20Test%20Other&event=${evB.id}`, usherA)).json()).guests;
     check("usher search only sees own event", Array.isArray(searchA) && searchA.length === 0, searchA);
-    const statsA = await (await get(`/api/stats?event=${evB.id}`, usherA)).json();
+    const statsA = await (await get(`/api/headcount?event=${evB.id}`, usherA)).json();
     check("usher stats are for own event", statsA.guests === 2, statsA);
 
     // --- admin scanning needs an event, and only admits that event's guests

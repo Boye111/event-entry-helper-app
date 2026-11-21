@@ -121,7 +121,7 @@ async function main() {
   const bCheckin = await (await post("/api/checkin", B, { code: guest.code, eventId: ev.id })).json().catch(() => ({}));
   check("B can't check in A's guest", bCheckin.status !== "admitted", bCheckin);
   check("B can't search A's guests", (await get(`/api/guests/search?event=${ev.id}&q=Guest`, B)).status === 400);
-  check("B can't read A's stats", (await get(`/api/stats?event=${ev.id}`, B)).status === 400);
+  check("B can't read A's stats", (await get(`/api/headcount?event=${ev.id}`, B)).status === 400);
   for (const page of ["", "/ushers", "/details", "/team"]) {
     check(`B gets 404 on A's page /dashboard/events/${ev.id}${page}`, (await get(`/dashboard/events/${ev.id}${page}`, B)).status === 404);
   }
@@ -180,7 +180,7 @@ async function main() {
   check("helper sees the event, marked as helper", hList.length === 1 && hList[0].id === ev.id && hList[0].access === "helper", hList);
   check("helper can add guests", (await post(`/api/org/events/${ev.id}/guests`, H, { name: "Added by helper", seats: 1 })).status === 201);
   check("helper can see ushers", (await get(`/api/org/events/${ev.id}/ushers`, H)).status === 200);
-  check("helper can use the scanner API", (await get(`/api/stats?event=${ev.id}`, H)).status === 200);
+  check("helper can use the scanner API", (await get(`/api/headcount?event=${ev.id}`, H)).status === 200);
   check("helper can open the event page", (await get(`/dashboard/events/${ev.id}`, H)).status === 200);
   check("helper can't delete the event -> 403", (await send("DELETE", `/api/org/events/${ev.id}`, H)).status === 403);
   check("helper can't invite more helpers -> 403", (await post(`/api/org/events/${ev.id}/team`, H, { label: "x" })).status === 403);
