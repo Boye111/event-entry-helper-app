@@ -6,7 +6,7 @@ import { eventTitle, eventType } from "@/lib/eventTypes";
 import { formatEventDate, formatEventTime, plural } from "@/lib/format";
 import { loadInvite } from "@/lib/invite";
 import { qrDataUrl } from "@/lib/qr";
-import { inviteUrl } from "@/lib/site";
+import { inviteUrl } from "@/lib/siteUrl";
 
 // READ-ONLY. This page must never check a guest in — only the usher scanner does that.
 export const dynamic = "force-dynamic";
@@ -22,7 +22,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const description =
     [formatEventDate(event.event_date), event.venue].filter(Boolean).join(" · ") ||
     "Tap to view your invitation and entry QR code.";
-  // Small landscape preview made for WhatsApp (absolute URL via metadataBase = NEXT_PUBLIC_SITE_URL).
+  // Small landscape preview made for WhatsApp (absolute URL via metadataBase = siteUrl()).
   const image = { url: `/api/og/${code}`, width: 1200, height: 630, type: "image/jpeg", alt: eventTitle(event) };
   return {
     title: { absolute: title },

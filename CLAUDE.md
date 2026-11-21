@@ -39,9 +39,9 @@ Deployed on **Vercel** (free tier). Must work well on mobile phones (Android Chr
 
 ```
 DATABASE_URL=postgres://...
-ADMIN_PASSWORD=...        # couple / organiser login
+ADMIN_PASSWORD=...        # one-time setup password to create the organiser account
 SESSION_SECRET=...        # long random string for signing cookies
-NEXT_PUBLIC_SITE_URL=https://<project>.vercel.app
+SITE_URL=...              # optional, custom domain only; else VERCEL_PROJECT_PRODUCTION_URL (lib/siteUrl.ts)
 ```
 
 Create `.env.example` with these keys (no real values). Never commit `.env`.
@@ -87,7 +87,9 @@ Provide a migration (Drizzle migration or `db/schema.sql`) and a seed script wit
 Product landing page (what it does, organiser login). No guest or event data. App name = `APP_NAME` in `lib/site.ts`.
 
 ### `/admin` — Organiser (password protected)
-- Login with `ADMIN_PASSWORD` → signed httpOnly cookie session.
+- Login with username + password (`organisers` table, scrypt hash) → signed httpOnly cookie with `organiserId`.
+  First visit with no organiser: setup form, proven with `ADMIN_PASSWORD`. `/admin/account` changes password/email.
+  Forgot password: not built yet (organisers.email is stored for it).
 - `/admin` lists events; `/admin/events/new` creates one; `/admin/events/[id]` = guests (below),
   `/admin/events/[id]/ushers`, `/admin/events/[id]/details` (edit, photo, delete with typed confirmation).
   Event APIs are nested: `/api/admin/events/[id]/{guests,import,export,ushers,photo}`.
@@ -108,7 +110,7 @@ Product landing page (what it does, organiser login). No guest or event data. Ap
 
 ### `/invite/[code]` — Guest invite page (public, read-only)
 - Shows: couple names, "You're invited, {name}", date, venue, dress code, seats ("Admits 2").
-- Large QR code (encodes the full URL `NEXT_PUBLIC_SITE_URL/invite/{code}`) so it scans well from a screenshot.
+- Large QR code (encodes the full URL `siteUrl()/invite/{code}`, see `lib/siteUrl.ts`) so it scans well from a screenshot.
 - Tip text: "Show this QR at the gate."
 - If already checked in, it may show "Checked in ✓" — but it must NOT perform a check-in.
 - Invalid code → friendly "Invite not found" page.
@@ -140,7 +142,7 @@ Product landing page (what it does, organiser login). No guest or event data. Ap
 Rate-limit `/api/checkin` and login routes lightly (simple in-memory or per-IP counter is fine) to stop PIN brute-forcing.
 
 ## Auth (keep it simple)
-- No organiser accounts: `ADMIN_PASSWORD` for the organiser; ushers use personal links + PIN (see `/scan`).
+- One organiser account (username + password, see `/admin`); ushers use personal links + PIN (see `/scan`).
 - On login, set a signed httpOnly, secure, sameSite=lax cookie (use `jose` or `iron-session`) with role `admin` or `usher` (+ usher name).
 - Use `middleware.ts` to guard `/admin/*` and `/scan/*` and the matching API routes.
 - Admin role can also use the scanner.

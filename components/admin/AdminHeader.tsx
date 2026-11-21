@@ -4,7 +4,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import { APP_NAME, siteUrl } from "@/lib/site";
+import { useSiteUrl } from "@/components/SiteUrl";
+import { APP_NAME } from "@/lib/site";
 
 /** Top bar for organiser pages. Pass `event` on pages inside one event to show its tabs. */
 export function AdminHeader({ event }: { event?: { id: number; name: string } }) {
@@ -27,6 +28,9 @@ export function AdminHeader({ event }: { event?: { id: number; name: string } })
           {event && <span className="block truncate text-xs text-ink/60">{event.name}</span>}
         </Link>
         <ThemeToggle />
+        <Link href="/admin/account" className="rounded-lg px-3 py-2 text-sm text-ink/60 hover:bg-ink/5">
+          Account
+        </Link>
         <button
           onClick={async () => {
             await fetch("/api/auth/logout", { method: "POST" });
@@ -61,19 +65,19 @@ export function AdminHeader({ event }: { event?: { id: number; name: string } })
 }
 
 /**
- * Catches a mistyped NEXT_PUBLIC_SITE_URL on the live site (e.g. another project's address):
- * invite links and QR codes would send guests to the wrong website.
+ * Shown when this page is open on a different address from the one inside invite links and QR codes
+ * (e.g. a Vercel preview address, or a SITE_URL typed wrong), so the organiser notices before sending invites.
  */
 function WrongSiteUrlBanner() {
+  const configured = useSiteUrl();
   const [here, setHere] = useState<string | null>(null);
   useEffect(() => setHere(window.location.origin), []);
-  const configured = siteUrl();
   if (!here || /\/\/(localhost|127\.0\.0\.1)/.test(here) || here === configured) return null;
   return (
-    <p className="bg-red-600 px-4 py-3 text-sm text-white">
-      <b>Stop: invite links point to the wrong website.</b> They go to <b>{configured}</b> but this site is{" "}
-      <b>{here}</b>. In Vercel set <code>NEXT_PUBLIC_SITE_URL</code> to <b>{here}</b>, redeploy, then resend any
-      invites already sent.
+    <p className="bg-amber-100 px-4 py-3 text-sm text-amber-900 dark:bg-amber-900/40 dark:text-amber-200">
+      <b>Heads up: invite links and QR codes use {configured}</b>, but you are on <b>{here}</b>. That is fine if{" "}
+      {configured} is your main address. If it isn&apos;t, set <code>SITE_URL</code> to <b>{here}</b> in Vercel and
+      redeploy.
     </p>
   );
 }
@@ -83,8 +87,8 @@ export function LocalUrlBanner({ siteUrl }: { siteUrl: string }) {
   return (
     <p className="rounded-lg bg-amber-100 px-4 py-3 text-sm text-amber-900 dark:bg-amber-900/30 dark:text-amber-200">
       <b>Invite links point to {siteUrl}</b>, which only works on this computer, so they won&apos;t open on
-      guests&apos; phones and WhatsApp can&apos;t show a preview. Deploy the app and set{" "}
-      <code>NEXT_PUBLIC_SITE_URL</code> to the live address <b>before</b> sending invites.
+      guests&apos; phones. That&apos;s expected while testing locally. On Vercel the live address is picked up
+      automatically.
     </p>
   );
 }

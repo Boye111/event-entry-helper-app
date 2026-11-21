@@ -9,8 +9,9 @@ export type Role = "admin" | "usher";
  * usherId/usherVersion are set for ushers who logged in with their personal link.
  * They are re-checked against the DB on every request (see lib/auth.ts), so deactivating
  * or resetting an usher logs them out immediately. The middleware only checks the signature.
+ * Admin sessions carry organiserId (the logged-in organiser account); old password-only sessions are rejected.
  */
-export type Session = { role: Role; name: string; usherId?: number; usherVersion?: number };
+export type Session = { role: Role; name: string; organiserId?: number; usherId?: number; usherVersion?: number };
 
 function key() {
   const secret = process.env.SESSION_SECRET;
@@ -19,7 +20,7 @@ function key() {
 }
 
 export async function signSession(s: Session): Promise<string> {
-  return new SignJWT({ role: s.role, name: s.name, uid: s.usherId, uv: s.usherVersion })
+  return new SignJWT({ role: s.role, name: s.name, oid: s.organiserId, uid: s.usherId, uv: s.usherVersion })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime(`${SESSION_MAX_AGE}s`)
@@ -32,6 +33,10 @@ export async function verifySession(token: string | undefined): Promise<Session 
     const { payload } = await jwtVerify(token, key(), { algorithms: ["HS256"] });
     if (payload.role !== "admin" && payload.role !== "usher") return null;
     const s: Session = { role: payload.role, name: typeof payload.name === "string" ? payload.name : "" };
+    if (payload.role === "admin") {
+      if (typeof payload.oid !== "number") return null; // from before username login existed
+      s.organiserId = payload.oid;
+    }
     if (typeof payload.uid === "number" && typeof payload.uv === "number") {
       s.usherId = payload.uid;
       s.usherVersion = payload.uv;

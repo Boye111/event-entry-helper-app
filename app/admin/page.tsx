@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { AdminHeader, LocalUrlBanner } from "@/components/admin/AdminHeader";
+import { DeleteEvent } from "@/components/admin/DeleteEvent";
 import { card, primaryBtn } from "@/components/admin/styles";
 import { eventType } from "@/lib/eventTypes";
 import { listEvents } from "@/lib/events";
 import { formatEventDate, plural } from "@/lib/format";
-import { siteUrl, siteUrlIsLocal } from "@/lib/site";
+import { siteUrl, siteUrlIsLocal } from "@/lib/siteUrl";
 
 export const metadata = { title: "Your events", robots: { index: false } };
 export const dynamic = "force-dynamic";
@@ -40,11 +41,8 @@ export default async function EventsPage() {
             {events.map((e) => {
               const pct = e.seats ? Math.round((e.arrived_seats / e.seats) * 100) : 0;
               return (
-                <li key={e.id}>
-                  <Link
-                    href={`/admin/events/${e.id}`}
-                    className={`${card} block h-full p-5 transition hover:ring-ink/25 hover:shadow-sm`}
-                  >
+                <li key={e.id} className={`${card} flex flex-col transition hover:ring-ink/25 hover:shadow-sm`}>
+                  <Link href={`/admin/events/${e.id}`} className="block flex-1 p-5 pb-3">
                     <p className="text-xs uppercase tracking-wider text-sage">{eventType(e.type).label}</p>
                     <p className="mt-1 font-serif text-xl leading-snug">{e.name}</p>
                     <p className="mt-1 text-sm text-ink/60">
@@ -57,6 +55,9 @@ export default async function EventsPage() {
                       <div className="h-full bg-sage" style={{ width: `${pct}%` }} />
                     </div>
                   </Link>
+                  <div className="border-t border-ink/5 px-3 py-2">
+                    <DeleteEvent eventId={e.id} eventName={e.name} compact />
+                  </div>
                 </li>
               );
             })}

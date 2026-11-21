@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { Dashboard } from "@/components/admin/Dashboard";
 import { eventTitle } from "@/lib/eventTypes";
 import { getEvent } from "@/lib/events";
-import { siteUrl, siteUrlIsLocal } from "@/lib/site";
+import { siteUrl, siteUrlIsLocal } from "@/lib/siteUrl";
 
 export const metadata = { title: "Guests", robots: { index: false } };
 export const dynamic = "force-dynamic";

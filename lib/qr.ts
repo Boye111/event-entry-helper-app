@@ -1,6 +1,6 @@
 import "server-only";
 import QRCode from "qrcode";
-import { inviteUrl } from "./site";
+import { inviteUrl } from "./siteUrl";
 
 const opts = { errorCorrectionLevel: "Q" as const, margin: 2, color: { dark: "#1f2937", light: "#ffffff" } };
 

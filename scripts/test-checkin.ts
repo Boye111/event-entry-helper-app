@@ -51,7 +51,13 @@ async function main() {
   const scanPage = await fetch(`${BASE}/scan`, { redirect: "manual" });
   check("/scan without login redirects", scanPage.status === 307 || scanPage.status === 308);
 
-  const admin = await login("/api/auth/admin", { password: process.env.ADMIN_PASSWORD });
+  if (!process.env.TEST_ADMIN_USERNAME || !process.env.TEST_ADMIN_PASSWORD) {
+    throw new Error("Set TEST_ADMIN_USERNAME and TEST_ADMIN_PASSWORD (an organiser account) to run these tests.");
+  }
+  const admin = await login("/api/auth/admin", {
+    username: process.env.TEST_ADMIN_USERNAME,
+    password: process.env.TEST_ADMIN_PASSWORD,
+  });
 
   // --- events are saved and listed
   const mkEvent = async (name: string, type = "wedding") =>

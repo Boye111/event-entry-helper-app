@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { formatCheckinTime } from "@/lib/format";
-import { inviteUrl } from "@/lib/site";
+import { useSiteUrl } from "@/components/SiteUrl";
+import { joinInvite } from "@/lib/site";
 import type { Guest } from "@/lib/types";
 import { emailLink, inviteMessage, whatsappLink } from "@/lib/whatsapp";
 import { pillMuted, pillOk, smallBtn, waBtn } from "./styles";
@@ -26,7 +27,7 @@ function Status({ g }: { g: Guest }) {
 
 function Actions({ guest: g, eventTitle, onEdit, onChanged }: Props) {
   const [copied, setCopied] = useState(false);
-  const link = inviteUrl(g.code);
+  const link = joinInvite(useSiteUrl(), g.code);
   const message = inviteMessage({ name: g.name, event: eventTitle, link, seats: g.seats });
 
   async function copy() {

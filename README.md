@@ -11,7 +11,9 @@ follows the device setting until you pick one).
 | Page | Who | What |
 |---|---|---|
 | `/` | Anyone | What the product does + organiser login |
-| `/admin` | Organiser (password) | All events, with guest counts |
+| `/admin/login` | Organiser | Username + password. The very first visit creates the account (needs `ADMIN_PASSWORD` once) |
+| `/admin` | Organiser | All events, with guest counts. Delete an event from its card |
+| `/admin/account` | Organiser | Change password / email |
 | `/admin/events/new` | Organiser | Create an event: kind, name, title on invite, date, venue, dress code, note |
 | `/admin/events/<id>` | Organiser | **Guests of that event**: stats, add, Excel/CSV import, WhatsApp/email invite, QR/card download, undo, CSV export |
 | `/admin/events/<id>/ushers` | Organiser | Ushers for that event: personal link + PIN, turn off / reset, who admitted how many |
@@ -31,31 +33,31 @@ npm install
 npm run db:migrate          # create / update tables (safe to run again)
 npm run db:seed             # optional: a sample event with 5 fake guests
 npm run dev                 # http://localhost:3000
-npm run test:checkin        # with dev server running: ~50 end-to-end checks (events, ushers, double-scan, 20-way race)
+npm run test:checkin        # with the server running + TEST_ADMIN_USERNAME/PASSWORD set: ~50 end-to-end checks
 ```
 
 The phone camera only works on `https://` or `localhost`. To test the scanner on a real phone, deploy to Vercel
 (easiest) or use a tunnel such as `npx localtunnel --port 3000`.
 
-### Why invite links don't open / show no preview locally
+### Why invite links don't open on phones locally
 
-Every invite link and QR uses `NEXT_PUBLIC_SITE_URL`. While that is `http://localhost:3000`, links only open on the
-computer running `npm run dev`, and WhatsApp can't fetch the preview picture. The organiser pages show a yellow
-warning when this is the case. **Deploy first, set `NEXT_PUBLIC_SITE_URL` to the live https address, then send
-invites.** After that, WhatsApp shows a preview card (event title, guest name, date, venue, photo) for each link.
-WhatsApp caches previews, so a link pasted before the fix may keep showing no preview; new links are fine.
+Invite links and QR codes use the site's public address. On your computer that is `http://localhost:3000`, which
+only exists on that computer, so phones can't open it and WhatsApp can't show a preview. The organiser pages show
+a yellow note when this is the case. Once deployed on Vercel, the live `https://<project>.vercel.app` address is
+used automatically; nothing to set.
 
 ## Environment variables
 
 | Key | Example | Notes |
 |---|---|---|
 | `DATABASE_URL` | `postgresql://…` | Supabase / Neon connection string (see Deploy) |
-| `ADMIN_PASSWORD` | long passphrase | Organiser login |
+| `ADMIN_PASSWORD` | long passphrase | **Setup password**, typed once on the login page to create the organiser account |
 | `SESSION_SECRET` | 64 random hex chars | `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` |
-| `NEXT_PUBLIC_SITE_URL` | `https://your-app.vercel.app` | Goes **inside every QR and link**. Set before sending invites; don't change after |
+| `SITE_URL` | `https://tundebisi.com` | Optional, **only for a custom domain**. Otherwise Vercel's address is used automatically. It goes inside every QR and link, so don't change it after sending invites |
 | `NEXT_PUBLIC_EVENT_TIMEZONE` | `Africa/Lagos` | Optional, default `Africa/Lagos` |
 
-Ushers don't use an env variable: each one gets a personal link + PIN from the **Ushers** tab.
+You don't need `NEXT_PUBLIC_SITE_URL` any more (an old value still works, and a leftover `localhost` value is
+ignored on Vercel). Ushers don't use an env variable: each one gets a personal link + PIN from the **Ushers** tab.
 
 ## Deploy (Vercel + Supabase, both free)
 
@@ -68,8 +70,10 @@ Ushers don't use an env variable: each one gets a personal link + PIN from the *
    (PowerShell: `$env:DATABASE_URL="<url>"; npm run db:migrate`)
 4. Push this repo to GitHub → **Import** it in Vercel. Pick the final project name first, because that is the
    address in every invite (e.g. `tunde-bisi-wedding` → `https://tunde-bisi-wedding.vercel.app`).
-5. In Vercel → Settings → Environment Variables, add the keys above, with `NEXT_PUBLIC_SITE_URL` = that address.
-6. Deploy. Log in at `/admin` → **New event** → add guests → **Ushers** → send each usher their link.
+5. In Vercel → Settings → Environment Variables, add `DATABASE_URL`, `ADMIN_PASSWORD` and `SESSION_SECRET`.
+6. Deploy. Open `/admin`: the first time, it asks for the setup password (`ADMIN_PASSWORD`) and lets you choose
+   your **username and password**. From then on you log in with those. Then **New event** → add guests →
+   **Ushers** → send each usher their link.
 
 The schema turns on Row Level Security for every table. That blocks Supabase's public REST API from reading the data;
 the app itself connects directly as the database owner and is not affected. Never put the database URL or
@@ -82,7 +86,8 @@ Neon works the same way: use its **pooled** connection string as `DATABASE_URL`.
 - One organiser login runs any number of events. Each event has its own guests, ushers, photo, stats and scanner.
 - The **kind of event** sets the wording: "The wedding of…", "Celebrating the life of…", "You're invited to…".
 - **Event name** is for you and your ushers; the **title** (couple / celebrant / event title) is what guests see.
-- Deleting an event deletes all its guests and ushers (you must type the event name to confirm).
+- **Delete** an event from its card on the events list, or from its **Details** tab. You type `DELETE` to
+  confirm; it removes all its guests and ushers.
 - Databases from before events existed are upgraded automatically by `npm run db:migrate`: the old event details
   become the first event and all existing guests and ushers are moved into it.
 
@@ -108,9 +113,18 @@ The WhatsApp message contains both. The usher opens the link, types the PIN, all
 - **Delete**: removes the usher. Guests they already admitted stay checked in.
 - The organiser can scan too, from the event's **Scanner** tab (e.g. as a backup at the gate).
 
+## Organiser account
+
+- Log in with a **username and password**. The account is created on the first visit to `/admin/login`, using
+  `ADMIN_PASSWORD` as a one-time setup password (so nobody else can claim your app).
+- Change your password or email under **Account** (top bar).
+- **Forgot password** isn't built yet. Until it is, the database owner can reset it by deleting the row in the
+  `organisers` table (Supabase → Table editor) and creating the account again on the login page.
+- There is one organiser account for now; it sees all events.
+
 ## Event-day checklist
 
-- [ ] `NEXT_PUBLIC_SITE_URL` is the live https address, and a test invite shows a preview on WhatsApp.
+- [ ] Invite links start with the live https address, and a test invite opens on a phone and shows a preview on WhatsApp.
 - [ ] Rehearsal a few days before: 2–3 phones scanning at the same time, from screenshots and printed cards.
 - [ ] Every usher has opened their link and logged in **before** guests arrive (Ushers page shows "Logged in …").
 - [ ] Undo any rehearsal check-ins (or delete test guests).

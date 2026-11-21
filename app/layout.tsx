@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, Playfair_Display } from "next/font/google";
-import { APP_NAME, siteUrl } from "@/lib/site";
+import { SiteUrlProvider } from "@/components/SiteUrl";
+import { APP_NAME } from "@/lib/site";
+import { siteUrl } from "@/lib/siteUrl";
 import "./globals.css";
 
 const inter = Inter({ variable: "--font-inter", subsets: ["latin"] });
@@ -31,7 +33,9 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
-      <body className={`${inter.variable} ${playfair.variable} antialiased`}>{children}</body>
+      <body className={`${inter.variable} ${playfair.variable} antialiased`}>
+        <SiteUrlProvider value={siteUrl()}>{children}</SiteUrlProvider>
+      </body>
     </html>
   );
 }

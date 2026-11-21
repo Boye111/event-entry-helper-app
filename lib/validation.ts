@@ -46,3 +46,25 @@ export const usherSchema = z.object({
 });
 
 export const usherPatchSchema = z.object({ active: z.boolean() });
+
+export const usernameSchema = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .min(3, "Username must be at least 3 characters")
+  .max(40, "Username is too long")
+  .regex(/^[a-z0-9._-]+$/, "Username can only use letters, numbers, dots, dashes and underscores");
+
+export const newPasswordSchema = z
+  .string()
+  .min(8, "Password must be at least 8 characters")
+  .max(200, "Password is too long");
+
+export const optionalEmailSchema = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .max(200)
+  .nullish()
+  .transform((v) => (v ? v : null))
+  .refine((v) => !v || z.email().safeParse(v).success, "That email address doesn't look right");

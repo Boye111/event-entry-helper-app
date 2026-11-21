@@ -3,7 +3,7 @@ import Papa from "papaparse";
 import { requireRole } from "@/lib/auth";
 import { listGuests } from "@/lib/guests";
 import { eventFromRoute, type IdCtx } from "@/lib/http";
-import { inviteUrl } from "@/lib/site";
+import { inviteUrl } from "@/lib/siteUrl";
 
 export const dynamic = "force-dynamic";
 

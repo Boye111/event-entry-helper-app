@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { formatCheckinTime, plural } from "@/lib/format";
-import { usherUrl } from "@/lib/site";
+import { useSiteUrl } from "@/components/SiteUrl";
+import { joinUsher } from "@/lib/site";
 import type { Usher } from "@/lib/types";
 import { usherMessage, whatsappLink } from "@/lib/whatsapp";
 import { card, errorBox, input, pillMuted, pillOk, primaryBtn, smallBtn as btn, waBtn, warnBox } from "./styles";
@@ -112,7 +113,7 @@ function AddUsher({ eventId, onAdded }: { eventId: number; onAdded: () => void }
 
 function UsherCard({ usher: u, eventName, onChanged }: { usher: Usher; eventName: string; onChanged: () => void }) {
   const [copied, setCopied] = useState(false);
-  const link = usherUrl(u.token);
+  const link = joinUsher(useSiteUrl(), u.token);
   const wa = whatsappLink(u.phone, usherMessage({ name: u.name, event: eventName, link, pin: u.pin }));
 
   async function call(url: string, method: string, body?: object) {

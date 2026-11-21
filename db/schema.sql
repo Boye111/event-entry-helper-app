@@ -104,3 +104,18 @@ ALTER TABLE guests   ENABLE ROW LEVEL SECURITY;
 ALTER TABLE settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE ushers   ENABLE ROW LEVEL SECURITY;
 ALTER TABLE events   ENABLE ROW LEVEL SECURITY;
+
+-- ============================================================================================
+-- Organiser accounts: username + password (scrypt hash). The first one is created on the login page,
+-- which asks for ADMIN_PASSWORD once so a stranger can't claim the app. `email` is kept for a future
+-- "forgot password" flow. All organiser accounts currently see all events.
+-- ============================================================================================
+CREATE TABLE IF NOT EXISTS organisers (
+  id             SERIAL PRIMARY KEY,
+  username       TEXT UNIQUE NOT NULL CHECK (username = lower(username)),
+  email          TEXT,
+  password_hash  TEXT NOT NULL,
+  created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+  last_login_at  TIMESTAMPTZ
+);
+ALTER TABLE organisers ENABLE ROW LEVEL SECURITY;
