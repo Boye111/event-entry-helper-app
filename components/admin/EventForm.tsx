@@ -6,6 +6,7 @@ import { EVENT_TYPES, eventType } from "@/lib/eventTypes";
 import { uploadEventPhoto } from "@/lib/clientImage";
 import { EVENT_TZ, fromEventInput, toEventInput } from "@/lib/format";
 import type { EventDetails } from "@/lib/types";
+import { DateTimeField } from "./DateTimeField";
 import { card, errorBox, input, label, primaryBtn } from "./styles";
 
 /** Create (no `event`) or edit an event. Creating takes you straight into the new event. */
@@ -98,11 +99,24 @@ export function EventForm({ event }: { event?: EventDetails }) {
           Invite will read: &ldquo;{t.kicker} <b>{form.hosts || form.name || t.hostsPlaceholder}</b>&rdquo;
         </span>
       </label>
-      <label className={label}>
+      <div className={label}>
         Date &amp; time
-        <input className={`${input} mt-1`} type="datetime-local" value={form.event_date} onChange={set("event_date")} />
-        <span className="mt-1 block text-xs font-normal text-ink/50">Venue time ({EVENT_TZ})</span>
-      </label>
+        <DateTimeField
+          value={form.event_date}
+          onChange={(v) => {
+            setStatus(null);
+            setForm((f) => ({ ...f, event_date: v }));
+          }}
+        />
+        <span className="mt-1 block text-xs font-normal text-ink/50">
+          Venue time ({EVENT_TZ}).{" "}
+          {form.event_date && (
+            <button type="button" className="underline" onClick={() => setForm((f) => ({ ...f, event_date: "" }))}>
+              Clear date
+            </button>
+          )}
+        </span>
+      </div>
       <label className={label}>
         Venue
         <input className={`${input} mt-1`} value={form.venue} onChange={set("venue")} maxLength={200} />
