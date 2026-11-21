@@ -6,8 +6,8 @@ _Last updated: 2026-11-21. Update this section at the end of every working sessi
 
 **Status:** multi-organiser app with super admin and per-event helpers is built and tested locally
 (`npm run test:organisers` 85 checks, `npm run test:checkin` 50 checks, all passing on a production build).
-Last commit on `main` that is **live on Vercel**: `f806349` (single organiser username/password). The
-multi-organiser + helpers work came after it. Check `git log` to see if it has been committed/pushed yet.
+Multi-organiser + helpers + super admin was pushed to `main` as `d078da5` on 2026-11-21 (Vercel deploys from
+`main`). Not yet confirmed by the owner on the live site or a real phone.
 
 **Before deploying the multi-organiser version:** run `npm run db:migrate` against the Supabase DB first
 (adds roles, invites, event ownership, event_helpers), then push. Everyone is logged out once.
