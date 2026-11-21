@@ -2,7 +2,8 @@
  * End-to-end tests against a running server (npm run dev).
  *   npm run test:checkin            (uses http://localhost:3000)
  *   BASE_URL=https://x.vercel.app npm run test:checkin
- * Creates two throwaway events (with guests + ushers) via the admin API, then deletes them.
+ * Logs in as super admin (ADMIN_PASSWORD from .env), makes a throwaway organiser through an invite link,
+ * creates two events (with guests + ushers) as that organiser, then deletes everything again.
  * Note: usher logins are rate-limited (10 / 15 min per IP); restart the dev server to re-run quickly.
  */
 import "dotenv/config";
@@ -45,30 +46,34 @@ async function main() {
   // --- auth guards
   check("POST /api/checkin without login -> 401", (await post("/api/checkin", "", { code: "x" })).status === 401);
   check("GET /api/stats without login -> 401", (await get("/api/stats")).status === 401);
-  check("GET /api/admin/events without login -> 401", (await get("/api/admin/events")).status === 401);
-  const adminPage = await fetch(`${BASE}/admin`, { redirect: "manual" });
-  check("/admin without login redirects", adminPage.status === 307 || adminPage.status === 308);
+  check("GET /api/org/events without login -> 401", (await get("/api/org/events")).status === 401);
+  const adminPage = await fetch(`${BASE}/dashboard`, { redirect: "manual" });
+  check("/dashboard without login redirects", adminPage.status === 307 || adminPage.status === 308);
+  const superPage = await fetch(`${BASE}/admin`, { redirect: "manual" });
+  check("/admin without login redirects", superPage.status === 307 || superPage.status === 308);
   const scanPage = await fetch(`${BASE}/scan`, { redirect: "manual" });
   check("/scan without login redirects", scanPage.status === 307 || scanPage.status === 308);
 
-  if (!process.env.TEST_ADMIN_USERNAME || !process.env.TEST_ADMIN_PASSWORD) {
-    throw new Error("Set TEST_ADMIN_USERNAME and TEST_ADMIN_PASSWORD (an organiser account) to run these tests.");
-  }
-  const admin = await login("/api/auth/admin", {
-    username: process.env.TEST_ADMIN_USERNAME,
-    password: process.env.TEST_ADMIN_PASSWORD,
+  const SUPER = await login("/api/auth/admin", { password: process.env.ADMIN_PASSWORD });
+  const invite = (await (await post("/api/admin/invites", SUPER, { label: "ZZ check-in test", days: 1 })).json()).invite;
+  const orgName = `zz-checkin-${Date.now().toString(36)}`;
+  const admin = await login("/api/auth/signup", {
+    token: invite.token,
+    username: orgName,
+    email: `${orgName}@example.com`,
+    password: "password-123",
   });
 
   // --- events are saved and listed
   const mkEvent = async (name: string, type = "wedding") =>
-    (await (await post("/api/admin/events", admin, { name, type, hosts: "Test & Test", venue: "Test Hall" })).json())
+    (await (await post("/api/org/events", admin, { name, type, hosts: "Test & Test", venue: "Test Hall" })).json())
       .event as Ev;
   const evA = await mkEvent("ZZ Test Wedding A");
   const evB = await mkEvent("ZZ Test Birthday B", "birthday");
   check("create event returns an id", Number.isInteger(evA?.id) && Number.isInteger(evB?.id), { evA, evB });
-  const badType = await post("/api/admin/events", admin, { name: "x", type: "rave" });
+  const badType = await post("/api/org/events", admin, { name: "x", type: "rave" });
   check("unknown event type -> 400", badType.status === 400);
-  const patched = await send("PATCH", `/api/admin/events/${evA.id}`, admin, {
+  const patched = await send("PATCH", `/api/org/events/${evA.id}`, admin, {
     name: "ZZ Test Wedding A (edited)",
     type: "wedding",
     hosts: "Ada & Obi",
@@ -76,14 +81,14 @@ async function main() {
     venue: "Test Hall",
   });
   check("PATCH event -> 200", patched.status === 200);
-  const listed = (await (await get("/api/admin/events", admin)).json()).events as (Ev & { hosts: string })[];
+  const listed = (await (await get("/api/org/events", admin)).json()).events as (Ev & { hosts: string })[];
   const savedA = listed.find((e) => e.id === evA.id);
   check("edited event is saved and listed", savedA?.name === "ZZ Test Wedding A (edited)" && savedA?.hosts === "Ada & Obi", savedA);
 
   try {
     // --- ushers belong to event A
     const mkUsher = async (name: string) =>
-      (await (await post(`/api/admin/events/${evA.id}/ushers`, admin, { name })).json()).usher as U;
+      (await (await post(`/api/org/events/${evA.id}/ushers`, admin, { name })).json()).usher as U;
     const uA = await mkUsher("Test – Gate A");
     const uB = await mkUsher("Test – Gate B");
     const uC = await mkUsher("Test – Gate C");
@@ -103,24 +108,24 @@ async function main() {
     const usherA = await login("/api/auth/usher", { token: uA.token, pin: uA.pin });
     const usherB = await login("/api/auth/usher", { token: uB.token, pin: uB.pin });
     const usherC = await login("/api/auth/usher", { token: uC.token, pin: uC.pin });
-    check("usher cannot list events -> 403", (await get("/api/admin/events", usherA)).status === 403);
-    check("usher cannot list guests -> 403", (await get(`/api/admin/events/${evA.id}/guests`, usherA)).status === 403);
+    check("usher cannot list events -> 403", (await get("/api/org/events", usherA)).status === 403);
+    check("usher cannot list guests -> 403", (await get(`/api/org/events/${evA.id}/guests`, usherA)).status === 403);
 
     const statsAs = (cookie: string, q = "") => get(`/api/stats${q}`, cookie).then((r) => r.status);
     check("usher C can use the scanner API", (await statsAs(usherC)) === 200);
-    await send("PATCH", `/api/admin/ushers/${uC.id}`, admin, { active: false });
+    await send("PATCH", `/api/org/ushers/${uC.id}`, admin, { active: false });
     check("turned-off usher is logged out immediately -> 401", (await statsAs(usherC)) === 401);
     check("turned-off usher cannot log in", (await tryUsher(uC.token, uC.pin)).status === 401);
-    await send("PATCH", `/api/admin/ushers/${uC.id}`, admin, { active: true });
+    await send("PATCH", `/api/org/ushers/${uC.id}`, admin, { active: true });
     check("turning back on does NOT revive the old session", (await statsAs(usherC)) === 401);
     const usherC2 = await login("/api/auth/usher", { token: uC.token, pin: uC.pin });
-    await post(`/api/admin/ushers/${uC.id}/reset`, admin);
+    await post(`/api/org/ushers/${uC.id}/reset`, admin);
     check("new link & PIN logs the usher out", (await statsAs(usherC2)) === 401);
     check("old link stops working after reset", (await tryUsher(uC.token, uC.pin)).status === 401);
 
     // --- guests (with email) belong to one event
     const mk = async (ev: Ev, name: string, email?: string) => {
-      const res = await post(`/api/admin/events/${ev.id}/guests`, admin, { name, seats: 2, email });
+      const res = await post(`/api/org/events/${ev.id}/guests`, admin, { name, seats: 2, email });
       return (await res.json()).guest as G & { email: string | null; event_id: number };
     };
     const g1 = await mk(evA, "ZZ Test Single", "Single@Example.com");
@@ -128,18 +133,18 @@ async function main() {
     const g3 = await mk(evB, "ZZ Test Other Event");
     check("guest email saved (lower-cased)", g1.email === "single@example.com", g1.email);
     check("guest is linked to its event", g1.event_id === evA.id && g3.event_id === evB.id);
-    const badEmail = await post(`/api/admin/events/${evA.id}/guests`, admin, { name: "x", seats: 1, email: "nope" });
+    const badEmail = await post(`/api/org/events/${evA.id}/guests`, admin, { name: "x", seats: 1, email: "nope" });
     check("bad email -> 400", badEmail.status === 400);
-    const noEvent = await post(`/api/admin/events/999999/guests`, admin, { name: "x", seats: 1 });
+    const noEvent = await post(`/api/org/events/999999/guests`, admin, { name: "x", seats: 1 });
     check("adding a guest to a missing event -> 404", noEvent.status === 404);
-    const imp = await post(`/api/admin/events/${evB.id}/import`, admin, {
+    const imp = await post(`/api/org/events/${evB.id}/import`, admin, {
       rows: [{ name: "ZZ Imported", phone: "08031234567", email: "imp@example.com", seats: "1" }],
     });
     check("import into event B", (await imp.json()).imported === 1);
-    const listB = (await (await get(`/api/admin/events/${evB.id}/guests`, admin)).json()).guests as G[];
-    const listA = (await (await get(`/api/admin/events/${evA.id}/guests`, admin)).json()).guests as G[];
+    const listB = (await (await get(`/api/org/events/${evB.id}/guests`, admin)).json()).guests as G[];
+    const listA = (await (await get(`/api/org/events/${evA.id}/guests`, admin)).json()).guests as G[];
     check("guest lists are separate per event", listA.length === 2 && listB.length === 2, [listA.length, listB.length]);
-    const csv = await (await get(`/api/admin/events/${evA.id}/export`, admin)).text();
+    const csv = await (await get(`/api/org/events/${evA.id}/export`, admin)).text();
     check("CSV export has email column", csv.includes("email") && csv.includes("single@example.com"));
 
     // --- invite page + previews (read-only)
@@ -196,21 +201,26 @@ async function main() {
       admitted === 1 && used === 19);
 
     // --- undo check-in then rescan
-    await post(`/api/admin/guests/${g2.id}/undo`, admin);
+    await post(`/api/org/guests/${g2.id}/undo`, admin);
     const r5 = await (await post("/api/checkin", usherA, { code: g2.code })).json();
     check("after undo, scan -> admitted again", r5.status === "admitted", r5);
 
     // --- per-usher admitted count (g1 by A; g2 by A after undo)
-    const ushers = (await (await get(`/api/admin/events/${evA.id}/ushers`, admin)).json()).ushers as (U & {
+    const ushers = (await (await get(`/api/org/events/${evA.id}/ushers`, admin)).json()).ushers as (U & {
       admitted: number;
     })[];
     const countA = ushers.find((u) => u.id === uA.id)?.admitted;
     check("usher A admitted count = 2", countA === 2, countA);
   } finally {
-    for (const ev of [evA, evB]) if (ev?.id) await send("DELETE", `/api/admin/events/${ev.id}`, admin);
+    for (const ev of [evA, evB]) if (ev?.id) await send("DELETE", `/api/org/events/${ev.id}`, admin);
   }
   check("deleting events removes their guests too",
-    (await (await get(`/api/admin/events/${evA.id}/guests`, admin)).status) === 404);
+    (await (await get(`/api/org/events/${evA.id}/guests`, admin)).status) === 404);
+
+  // remove the throwaway organiser
+  const orgs = (await (await get("/api/admin/organisers", SUPER)).json()).organisers as { id: number; username: string }[];
+  const me = orgs.find((o) => o.username === orgName);
+  if (me) await send("DELETE", `/api/admin/organisers/${me.id}`, SUPER);
 
   console.log(failures ? `\n${failures} FAILED` : "\nAll passed.");
   process.exit(failures ? 1 : 0);

@@ -4,14 +4,24 @@ import { SignJWT, jwtVerify } from "jose";
 export const SESSION_COOKIE = "wedding_session";
 export const SESSION_MAX_AGE = 60 * 60 * 24 * 7; // 7 days
 
-export type Role = "admin" | "usher";
 /**
- * usherId/usherVersion are set for ushers who logged in with their personal link.
- * They are re-checked against the DB on every request (see lib/auth.ts), so deactivating
- * or resetting an usher logs them out immediately. The middleware only checks the signature.
- * Admin sessions carry organiserId (the logged-in organiser account); old password-only sessions are rejected.
+ * - organiser: a logged-in account (organiser or helper). organiserId + organiserVersion.
+ * - usher:     a personal scanner link + PIN. usherId + usherVersion.
+ * - super:     the app owner, logged in at /admin with ADMIN_PASSWORD. superKey = fingerprint of that password,
+ *              so changing ADMIN_PASSWORD logs the super admin out everywhere.
+ * Everything is re-checked against the DB / env on every request (lib/auth.ts). The middleware only checks
+ * the signature.
  */
-export type Session = { role: Role; name: string; organiserId?: number; usherId?: number; usherVersion?: number };
+export type Role = "organiser" | "usher" | "super";
+export type Session = {
+  role: Role;
+  name: string;
+  organiserId?: number;
+  organiserVersion?: number;
+  usherId?: number;
+  usherVersion?: number;
+  superKey?: string;
+};
 
 function key() {
   const secret = process.env.SESSION_SECRET;
@@ -20,7 +30,15 @@ function key() {
 }
 
 export async function signSession(s: Session): Promise<string> {
-  return new SignJWT({ role: s.role, name: s.name, oid: s.organiserId, uid: s.usherId, uv: s.usherVersion })
+  return new SignJWT({
+    role: s.role,
+    name: s.name,
+    oid: s.organiserId,
+    ov: s.organiserVersion,
+    uid: s.usherId,
+    uv: s.usherVersion,
+    sk: s.superKey,
+  })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime(`${SESSION_MAX_AGE}s`)
@@ -30,18 +48,16 @@ export async function signSession(s: Session): Promise<string> {
 export async function verifySession(token: string | undefined): Promise<Session | null> {
   if (!token) return null;
   try {
-    const { payload } = await jwtVerify(token, key(), { algorithms: ["HS256"] });
-    if (payload.role !== "admin" && payload.role !== "usher") return null;
-    const s: Session = { role: payload.role, name: typeof payload.name === "string" ? payload.name : "" };
-    if (payload.role === "admin") {
-      if (typeof payload.oid !== "number") return null; // from before username login existed
-      s.organiserId = payload.oid;
+    const { payload: p } = await jwtVerify(token, key(), { algorithms: ["HS256"] });
+    const name = typeof p.name === "string" ? p.name : "";
+    if (p.role === "organiser" && typeof p.oid === "number" && typeof p.ov === "number") {
+      return { role: "organiser", name, organiserId: p.oid, organiserVersion: p.ov };
     }
-    if (typeof payload.uid === "number" && typeof payload.uv === "number") {
-      s.usherId = payload.uid;
-      s.usherVersion = payload.uv;
+    if (p.role === "usher" && typeof p.uid === "number" && typeof p.uv === "number") {
+      return { role: "usher", name, usherId: p.uid, usherVersion: p.uv };
     }
-    return s;
+    if (p.role === "super" && typeof p.sk === "string") return { role: "super", name: "Super admin", superKey: p.sk };
+    return null; // older cookie formats: log in again
   } catch {
     return null;
   }

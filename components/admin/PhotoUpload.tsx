@@ -36,7 +36,7 @@ export function PhotoUpload({
   async function remove() {
     if (!confirm("Remove the picture?")) return;
     setBusy(true);
-    const res = await fetch(`/api/admin/events/${eventId}/photo`, { method: "DELETE" }).catch(() => null);
+    const res = await fetch(`/api/org/events/${eventId}/photo`, { method: "DELETE" }).catch(() => null);
     setBusy(false);
     if (res?.ok) setVersion(null);
     else setError("Could not remove. Try again.");

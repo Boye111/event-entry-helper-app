@@ -106,9 +106,11 @@ ALTER TABLE ushers   ENABLE ROW LEVEL SECURITY;
 ALTER TABLE events   ENABLE ROW LEVEL SECURITY;
 
 -- ============================================================================================
--- Organiser accounts: username + password (scrypt hash). The first one is created on the login page,
--- which asks for ADMIN_PASSWORD once so a stranger can't claim the app. `email` is kept for a future
--- "forgot password" flow. All organiser accounts currently see all events.
+-- Accounts (username + password, scrypt hash). Nobody signs up without a one-time invite link:
+--  - invite from the SUPER ADMIN (event_id NULL)  -> role 'organiser': can create and own events
+--  - invite from an organiser for one event        -> role 'helper': works on events they're added to
+-- The super admin is NOT an account: it logs in at /admin with ADMIN_PASSWORD only.
+-- `active` = false turns an account off; bumping `version` logs that account out everywhere.
 -- ============================================================================================
 CREATE TABLE IF NOT EXISTS organisers (
   id             SERIAL PRIMARY KEY,
@@ -119,3 +121,41 @@ CREATE TABLE IF NOT EXISTS organisers (
   last_login_at  TIMESTAMPTZ
 );
 ALTER TABLE organisers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE organisers ADD COLUMN IF NOT EXISTS role    TEXT    NOT NULL DEFAULT 'organiser';
+ALTER TABLE organisers ADD COLUMN IF NOT EXISTS active  BOOLEAN NOT NULL DEFAULT true;
+ALTER TABLE organisers ADD COLUMN IF NOT EXISTS version INTEGER NOT NULL DEFAULT 1;
+-- (An earlier version had a 'super' account role; the super admin is now ADMIN_PASSWORD only.)
+ALTER TABLE organisers DROP CONSTRAINT IF EXISTS organisers_role_check;
+UPDATE organisers SET role = 'organiser' WHERE role NOT IN ('organiser', 'helper');
+ALTER TABLE organisers ADD CONSTRAINT organisers_role_check CHECK (role IN ('organiser', 'helper'));
+
+CREATE TABLE IF NOT EXISTS invites (
+  id          SERIAL PRIMARY KEY,
+  token       TEXT UNIQUE NOT NULL,
+  label       TEXT NOT NULL,                 -- who it's for, e.g. "Kemi - planner"
+  created_by  INTEGER REFERENCES organisers(id) ON DELETE SET NULL,   -- NULL = super admin
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  expires_at  TIMESTAMPTZ NOT NULL,
+  used_at     TIMESTAMPTZ,
+  used_by     INTEGER REFERENCES organisers(id) ON DELETE SET NULL,
+  revoked_at  TIMESTAMPTZ
+);
+ALTER TABLE invites ENABLE ROW LEVEL SECURITY;
+ALTER TABLE organisers ADD COLUMN IF NOT EXISTS invite_id INTEGER REFERENCES invites(id) ON DELETE SET NULL;
+
+-- Each event has one owner. Deleting an account deletes the events it owns (and their guests and ushers).
+-- Events from before accounts existed have no owner until the super admin moves them to someone.
+ALTER TABLE events ADD COLUMN IF NOT EXISTS organiser_id INTEGER REFERENCES organisers(id) ON DELETE CASCADE;
+CREATE INDEX IF NOT EXISTS events_organiser_idx ON events (organiser_id);
+
+-- Helpers: extra accounts that may work on an event (guests, ushers, scanner, details).
+-- Only the owner (or super admin) can delete the event or change its helpers.
+ALTER TABLE invites ADD COLUMN IF NOT EXISTS event_id INTEGER REFERENCES events(id) ON DELETE CASCADE;
+CREATE TABLE IF NOT EXISTS event_helpers (
+  event_id      INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  organiser_id  INTEGER NOT NULL REFERENCES organisers(id) ON DELETE CASCADE,
+  added_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (event_id, organiser_id)
+);
+CREATE INDEX IF NOT EXISTS event_helpers_organiser_idx ON event_helpers (organiser_id);
+ALTER TABLE event_helpers ENABLE ROW LEVEL SECURITY;

@@ -8,7 +8,7 @@ import { checkinSchema } from "@/lib/validation";
 export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
-  const auth = await requireRole("usher");
+  const auth = await requireRole("scan");
   if (auth.error) return auth.error;
 
   // Generous: a busy gate might scan ~1/sec, but stops scripted guessing.
@@ -19,14 +19,14 @@ export async function POST(req: Request) {
   const parsed = checkinSchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ status: "invalid" });
 
-  const eventId = scanEventId(auth.session, parsed.data.eventId);
+  const eventId = await scanEventId(auth.session, parsed.data.eventId);
   if (!eventId) return NextResponse.json({ error: "Choose an event first." }, { status: 400 });
 
   const code = extractCode(parsed.data.code);
   if (!code) return NextResponse.json({ status: "invalid" });
 
   try {
-    const name = auth.session.name || (auth.session.role === "admin" ? "Admin" : "Usher");
+    const name = auth.session.name || (auth.session.role === "usher" ? "Usher" : "Organiser");
     return NextResponse.json(await checkIn(code, { name, id: auth.session.usherId ?? null }, eventId));
   } catch (e) {
     console.error("checkin failed", e);

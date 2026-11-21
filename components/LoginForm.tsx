@@ -6,8 +6,12 @@ import { useState } from "react";
 const field =
   "mt-1 w-full rounded-xl border border-ink/15 bg-surface px-4 py-4 text-lg text-ink outline-none focus:border-sage focus:ring-2 focus:ring-sage/30";
 
-/** mode "admin" = organiser username + password. mode "usher" = PIN for the personal scanner link `token`. */
-export function LoginForm({ mode, token }: { mode: "admin" | "usher"; token?: string }) {
+/**
+ * mode "organiser" = username + password (organisers and helpers) → `next` or /dashboard
+ * mode "super"     = ADMIN_PASSWORD only → /admin
+ * mode "usher"     = PIN for the personal scanner link `token` → /scan
+ */
+export function LoginForm({ mode, token, next }: { mode: "organiser" | "super" | "usher"; token?: string; next?: string }) {
   const router = useRouter();
   const [username, setUsername] = useState("");
   const [secret, setSecret] = useState("");
@@ -18,16 +22,18 @@ export function LoginForm({ mode, token }: { mode: "admin" | "usher"; token?: st
     e.preventDefault();
     setBusy(true);
     setError(null);
+    const endpoint = { organiser: "/api/auth/login", super: "/api/auth/admin", usher: "/api/auth/usher" }[mode];
+    const body =
+      mode === "organiser" ? { username, password: secret } : mode === "super" ? { password: secret } : { token, pin: secret };
     try {
-      const res = await fetch(`/api/auth/${mode}`, {
+      const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(mode === "admin" ? { username, password: secret } : { token, pin: secret }),
+        body: JSON.stringify(body),
       });
       const data = await res.json().catch(() => ({}));
-      if (data.needsSetup) return window.location.reload();
       if (!res.ok) throw new Error(data.error || "Login failed");
-      router.replace(mode === "admin" ? "/admin" : "/scan");
+      router.replace(mode === "organiser" ? next || "/dashboard" : mode === "super" ? "/admin" : "/scan");
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Login failed. Check your internet.");
@@ -38,7 +44,7 @@ export function LoginForm({ mode, token }: { mode: "admin" | "usher"; token?: st
   const usher = mode === "usher";
   return (
     <form onSubmit={submit} className="space-y-4">
-      {!usher && (
+      {mode === "organiser" && (
         <label className="block">
           <span className="text-sm font-medium">Username</span>
           <input
@@ -64,7 +70,7 @@ export function LoginForm({ mode, token }: { mode: "admin" | "usher"; token?: st
           value={secret}
           onChange={(e) => setSecret(e.target.value)}
           required
-          autoFocus={usher}
+          autoFocus={mode !== "organiser"}
         />
       </label>
       {error && (

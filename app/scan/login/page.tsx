@@ -14,7 +14,7 @@ export default function ScanLogin() {
           Open the personal scanner link the organiser sent you on WhatsApp. If it stopped working, ask the organiser
           for a new one.
         </p>
-        <Link href="/admin/login" className="mt-8 inline-block text-sm text-ink/50 underline">
+        <Link href="/login" className="mt-8 inline-block text-sm text-ink/50 underline">
           Organiser? Log in here
         </Link>
       </div>

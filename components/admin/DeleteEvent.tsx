@@ -10,7 +10,18 @@ const WORD = "DELETE";
  * (A fixed word instead of the event name: phone keyboards turn ' into ’, so names never matched.)
  * `compact` = small button for the events list; the full panel is on the event's Details tab.
  */
-export function DeleteEvent({ eventId, eventName, compact = false }: { eventId: number; eventName: string; compact?: boolean }) {
+export function DeleteEvent({
+  eventId,
+  eventName,
+  compact = false,
+  after = "/dashboard",
+}: {
+  eventId: number;
+  eventName: string;
+  compact?: boolean;
+  /** Where to go once deleted */
+  after?: string;
+}) {
   const [open, setOpen] = useState(false);
   const [typed, setTyped] = useState("");
   const [busy, setBusy] = useState(false);
@@ -19,8 +30,8 @@ export function DeleteEvent({ eventId, eventName, compact = false }: { eventId: 
   async function remove() {
     setBusy(true);
     setError(null);
-    const res = await fetch(`/api/admin/events/${eventId}`, { method: "DELETE" }).catch(() => null);
-    if (res?.ok) return void (window.location.href = "/admin");
+    const res = await fetch(`/api/org/events/${eventId}`, { method: "DELETE" }).catch(() => null);
+    if (res?.ok) return void (window.location.href = after);
     const data = await res?.json().catch(() => null);
     setBusy(false);
     setError(data?.error || "Could not delete. Check your internet and try again.");

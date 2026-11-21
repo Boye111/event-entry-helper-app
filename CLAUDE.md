@@ -1,211 +1,153 @@
 # CLAUDE.md — Event Entry (QR invitations & gate check-in)
 
+## ▶ Where we stopped (read this first, keep it current)
+
+_Last updated: 2026-11-21. Update this section at the end of every working session._
+
+**Status:** multi-organiser app with super admin and per-event helpers is built and tested locally
+(`npm run test:organisers` 85 checks, `npm run test:checkin` 50 checks, all passing on a production build).
+Last commit on `main` that is **live on Vercel**: `f806349` (single organiser username/password). The
+multi-organiser + helpers work came after it. Check `git log` to see if it has been committed/pushed yet.
+
+**Before deploying the multi-organiser version:** run `npm run db:migrate` against the Supabase DB first
+(adds roles, invites, event ownership, event_helpers), then push. Everyone is logged out once.
+After deploy: log in at `/admin` with `ADMIN_PASSWORD` → create an invite link for the organiser the app was
+built for → once they sign up, **Move** the existing events (which have no owner) to them under "All events".
+The account created earlier on the live site with the old setup page is now an ordinary organiser account
+(delete it from `/admin` if it isn't needed).
+
+**Who the app is for:** built first for one organiser (a friend of the owner, running a wedding); the owner
+now wants other organisers to use it too, invite-only for now.
+
+**Backlog (agreed ideas, not built yet), roughly in priority order:**
+1. Forgot password by email (Resend, free tier). `organisers.email` is already collected at sign-up. Until then
+   the super admin uses **Reset password** (temporary password shown once).
+2. Activity / audit log: who did what (deleted event, undid check-in, removed helper, moved event).
+3. Limits per organiser (events / guests) if the app is ever charged for; open sign-up from the landing page.
+4. Impersonation ("see what this organiser sees") — deliberately skipped for now; opening their events covers it.
+5. Remove the unused `USHER_PIN` line from the local `.env` (nothing reads it any more).
+
 ## What this project is
 
-A web app for weddings and other events. One organiser login manages many **events**; each event has its own guests, ushers, photo and scanner. The organiser adds invited guests to an event; each guest gets a unique QR code (sent via WhatsApp). At the venue gate, ushers scan the QR with their phone. The **first** valid scan admits the guest (they get a wristband); any later scan of the same QR is rejected and shows when it was used.
+A web app for weddings and other events. **Organisers** (invite-only accounts) each manage their own **events**;
+each event has its own guests, ushers, photo, scanner and **helpers** (co-planners). Each guest gets a unique QR
+code (sent via WhatsApp). At the venue gate, ushers scan the QR with their phone. The **first** valid scan admits
+the guest (they get a wristband); any later scan of the same QR is rejected and shows when it was used.
+The app owner is the **super admin** at `/admin` and can see and manage everything.
 
-Deployed on **Vercel** (free tier). Must work well on mobile phones (Android Chrome especially) — ushers and guests are all on phones.
+Deployed on **Vercel** (free tier) with **Supabase** Postgres. Must work well on mobile phones (Android Chrome
+especially) — organisers, ushers and guests are all on phones.
 
 ## Core rules (do not break these)
 
-1. **Only the usher scanner can check someone in.** The guest invite page (`/invite/[code]`) must NEVER mark a guest as checked in. A guest scanning their own QR with their phone camera just opens their invite page.
-2. **One-scan-only is enforced in the database, atomically.** Check-in must be a single conditional update, never "read then write":
+1. **Only the scanner can check someone in.** The guest invite page (`/invite/[code]`) must NEVER mark a guest as checked in.
+2. **One-scan-only is enforced in the database, atomically.** Check-in is a single conditional update, never "read then write":
    ```sql
-   UPDATE guests
-   SET checked_in_at = now(), checked_in_by = $2
-   WHERE code = $1 AND checked_in_at IS NULL
+   UPDATE guests SET checked_in_at = now(), checked_in_by = $2
+   WHERE code = $1 AND event_id = $3 AND checked_in_at IS NULL
    RETURNING *;
    ```
-   - 1 row returned → ADMIT
-   - 0 rows → look up the code: if it exists → ALREADY USED (show time + usher); if not → INVALID
-   This must stay correct when several ushers scan at different gates at the same time.
-3. **Codes must be unguessable.** Use `nanoid` (10–12 chars, URL-safe alphabet without look-alike characters). Never sequential IDs in URLs or QRs.
-4. **Admin and scanner are protected.** Guests must not be able to reach `/admin` or `/scan` actions.
-5. **All check-in logic runs server-side** (route handlers / server actions). The client never decides if a guest is admitted.
+   1 row → ADMIT · 0 rows → code exists in this event → ALREADY USED (time + usher) · other event → WRONG EVENT · else INVALID.
+   Must stay correct when several ushers scan at the same time (tested with a 20-way race).
+3. **Codes and tokens are unguessable** (`nanoid`, look-alike-free alphabet in `lib/codes.ts`). Never sequential IDs in URLs or QRs.
+4. **Tenant isolation:** an organiser/helper must never see or change another organiser's events, guests, ushers
+   or invites. **Every organiser route uses `requireEvent` / `requireRowOf` / `pageEvent` from `lib/auth.ts`**
+   (never a bare `getEvent(id)`); someone else's event answers **404**, never 403 or data.
+5. **All auth and check-in logic runs server-side.** Sessions are re-checked against the DB on every request.
 
 ## Tech stack
 
-- **Next.js 15 (App Router) + TypeScript**
-- **Tailwind CSS** for styling
-- **Postgres** via **Neon** or **Supabase** (free tier) — use `DATABASE_URL`
-- **Drizzle ORM** (or plain `postgres`/`pg` with SQL — keep it simple)
-- **`qrcode`** (npm) — generate QR images (PNG data URL / SVG) server-side
-- **`html5-qrcode`** — camera-based QR scanning in the browser (requires HTTPS; Vercel provides it; use `localhost` in dev)
-- **`nanoid`** — guest codes
-- **`zod`** — validate inputs
-- **`papaparse`** — CSV import of guests
+- Next.js 15 (App Router) + TypeScript (strict), Tailwind CSS v4
+- Postgres (Supabase transaction pooler, port 6543) via `postgres` (plain SQL, no ORM); schema in `db/schema.sql`
+- `qrcode`, `html5-qrcode`, `nanoid`, `zod`, `papaparse` + `read-excel-file`, `jose` (cookie JWT),
+  Node `crypto.scrypt` for passwords, `next/og` for invite cards / WhatsApp previews (`jpeg-js`, `pngjs`)
+- Dev machine is Windows: keep npm scripts cross-platform
 
 ## Environment variables
 
 ```
-DATABASE_URL=postgres://...
-ADMIN_PASSWORD=...        # one-time setup password to create the organiser account
-SESSION_SECRET=...        # long random string for signing cookies
-SITE_URL=...              # optional, custom domain only; else VERCEL_PROJECT_PRODUCTION_URL (lib/siteUrl.ts)
+DATABASE_URL=postgres://...   # Supabase transaction pooler
+ADMIN_PASSWORD=...            # super admin login at /admin (no username). Changing it logs the super admin out.
+SESSION_SECRET=...            # 32+ random chars for signing cookies
+SITE_URL=...                  # optional, custom domain only; else VERCEL_PROJECT_PRODUCTION_URL (lib/siteUrl.ts)
+NEXT_PUBLIC_EVENT_TIMEZONE=   # optional, default Africa/Lagos
 ```
+Never commit `.env`. `.env.example` lists every key. `NEXT_PUBLIC_SITE_URL` is legacy (still honoured, not needed).
 
-Create `.env.example` with these keys (no real values). Never commit `.env`.
+## Who logs in where
 
-## Data model
+| Who | Login | Area | Session role |
+|---|---|---|---|
+| Super admin (app owner) | `/admin/login`, `ADMIN_PASSWORD` only | `/admin`, `/api/admin/*`; may open any event page under `/dashboard/events/[id]` | `super` |
+| Organiser | `/login` username + password; sign up via invite from super admin | `/dashboard`, `/api/org/*` | `organiser` (account role `organiser`) |
+| Helper | same `/login`; sign up via an event's helper invite (or join with an existing account) | events they were added to | `organiser` (account role `helper`) |
+| Usher | `/scan/join/<token>` + 6-digit PIN | `/scan` for one event | `usher` |
 
-```sql
-CREATE TABLE guests (
-  id             SERIAL PRIMARY KEY,
-  code           TEXT UNIQUE NOT NULL,         -- nanoid, goes inside the QR
-  name           TEXT NOT NULL,
-  phone          TEXT,                          -- for WhatsApp share link, e.g. 2348012345678
-  seats          INTEGER NOT NULL DEFAULT 1,    -- how many people this QR admits (wristbands to give)
-  side           TEXT,                          -- optional: 'bride' | 'groom' | 'family' | 'friends'
-  table_no       TEXT,                          -- optional
-  checked_in_at  TIMESTAMPTZ,                   -- NULL = not yet arrived
-  checked_in_by  TEXT,                          -- usher name/gate entered on scanner login
-  created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
-);
+- `middleware.ts` checks the cookie kind per area (signature only); `getActiveSession()` re-checks the DB:
+  account active + `version` matches (turn off / password reset = instant logout), usher active + version,
+  super admin cookie holds a fingerprint of `ADMIN_PASSWORD`.
+- Event access levels (`eventAccess` in `lib/auth.ts`): `super` and `owner` can do everything; `helper` can
+  manage guests, ushers, details, photo and scanner but **not** delete the event or change helpers
+  (`requireEvent(id, "manage")`). Helper accounts can't create events until the super admin clicks **Make organiser**.
+- Invites (`invites` table): one-time, expire, cancellable. `event_id NULL` = organiser sign-up (super admin);
+  `event_id` set = helper for that event. Claimed with a conditional UPDATE inside a transaction.
 
--- Current schema lives in db/schema.sql (idempotent; npm run db:migrate). Summary of later additions:
---   events (id, public_id, name, type, hosts, event_date, venue, dress_code, note, photo...)
---   guests.event_id (NOT NULL, FK, cascade), guests.email, guests.checked_in_usher_id
---   ushers (id, event_id, token, name, phone, pin, active, version, last_login_at)
--- Guest codes stay globally unique; check-in additionally requires the scanner's event_id.
--- RLS is enabled on every table (no policies) so Supabase's REST API exposes nothing.
+## Data model (db/schema.sql is the source of truth; idempotent, `npm run db:migrate`)
 
-CREATE TABLE settings (           -- LEGACY single row; only used to migrate old data into `events`
-  id          INTEGER PRIMARY KEY DEFAULT 1,
-  couple      TEXT,               -- e.g. "Tunde & Bisi"
-  event_date  TIMESTAMPTZ,
-  venue       TEXT,
-  dress_code  TEXT,
-  note        TEXT
-);
-```
-
-Provide a migration (Drizzle migration or `db/schema.sql`) and a seed script with ~5 fake guests.
+- `events` (id, public_id, organiser_id → owner, name, type, hosts, event_date, venue, dress_code, note, photo…)
+- `guests` (id, event_id, code unique, name, phone, email, seats, side, table_no, checked_in_at, checked_in_by, checked_in_usher_id)
+- `ushers` (id, event_id, token, name, phone, pin, active, version, last_login_at)
+- `organisers` = accounts (id, username lowercase unique, email, password_hash scrypt, role organiser|helper, active, version, invite_id, last_login_at)
+- `event_helpers` (event_id, organiser_id)
+- `invites` (id, token, label, created_by, event_id, expires_at, used_at, used_by, revoked_at)
+- `settings`: legacy single row, only used to migrate very old data into `events`
+- Deleting an account deletes the events it owns (cascade → guests, ushers, helper rows, invites).
+- RLS is enabled on every table with no policies, so Supabase's REST API exposes nothing; the app connects as owner.
 
 ## Pages & routes
 
-### `/` — Landing
-Product landing page (what it does, organiser login). No guest or event data. App name = `APP_NAME` in `lib/site.ts`.
-
-### `/admin` — Organiser (password protected)
-- Login with username + password (`organisers` table, scrypt hash) → signed httpOnly cookie with `organiserId`.
-  First visit with no organiser: setup form, proven with `ADMIN_PASSWORD`. `/admin/account` changes password/email.
-  Forgot password: not built yet (organisers.email is stored for it).
-- `/admin` lists events; `/admin/events/new` creates one; `/admin/events/[id]` = guests (below),
-  `/admin/events/[id]/ushers`, `/admin/events/[id]/details` (edit, photo, delete with typed confirmation).
-  Event APIs are nested: `/api/admin/events/[id]/{guests,import,export,ushers,photo}`.
-- Everything below is per event.
-- Stats at top: total guests, total seats, checked in (guests + seats), remaining. Auto-refresh every ~10s.
-- Guest table: search by name/phone, filter (all / arrived / not arrived), shows status + check-in time.
-- Add guest form (name, phone, seats, side, table).
-- **CSV import** (columns: `name,phone,seats,side,table_no`) with a preview before saving.
-- Per guest actions:
-  - View/download QR (PNG)
-  - Download **invite card** image (couple names, guest name, date, venue, QR) — nice for WhatsApp
-  - **Share on WhatsApp** button → `https://wa.me/<phone>?text=<encoded message with invite link>`
-  - Copy invite link
-  - Edit / delete
-  - **Undo check-in** (for mistakes) — with a confirm step
-- Export all guests to CSV (backup for the gate if internet fails).
-- Event settings form (couple, date, venue, dress code, note).
-
-### `/invite/[code]` — Guest invite page (public, read-only)
-- Shows: couple names, "You're invited, {name}", date, venue, dress code, seats ("Admits 2").
-- Large QR code (encodes the full URL `siteUrl()/invite/{code}`, see `lib/siteUrl.ts`) so it scans well from a screenshot.
-- Tip text: "Show this QR at the gate."
-- If already checked in, it may show "Checked in ✓" — but it must NOT perform a check-in.
-- Invalid code → friendly "Invite not found" page.
-- Add proper Open Graph meta so the WhatsApp link preview looks good.
-
-### `/scan` — Usher scanner (PIN protected)
-- Ushers are created by the organiser at `/admin/ushers` (table `ushers`): each gets a private link
-  `/scan/join/<token>` + 6-digit PIN, sent via WhatsApp. Login puts `usherId` + `usherVersion` in the signed
-  cookie; every usher request re-checks the DB (`getActiveSession`), so "Turn off" / "New link & PIN" log them out
-  immediately. `guests.checked_in_usher_id` records who admitted whom. Shared `USHER_PIN` login only if that env is set.
-- Full-screen camera scanner (rear camera by default), mobile-first.
-- Scanner accepts either the full invite URL or a bare code; extract the code from the URL.
-- On scan → POST `/api/checkin` → show a **full-screen result**:
-  - 🟢 **GREEN — ADMIT**: guest name, "Give N wristband(s)", side/table
-  - 🔴 **RED — ALREADY USED**: guest name, "Checked in at 3:42 PM by Kemi – Gate A"
-  - 🟡 **YELLOW/RED — INVALID**: "Code not recognised"
-- Play a short beep/vibrate (`navigator.vibrate`) on result; different pattern for success vs fail.
-- Pause scanning while the result shows; "Scan next" button (or auto-resume after ~3s) to avoid double-scanning the same QR.
-- **Manual search fallback**: search guest by name/phone and check in with a button (same atomic API) — for broken phones / dead batteries.
-- Live counter at top: "Checked in: 142 / 300".
-
-### API routes
-- `POST /api/checkin` `{ code }` → usher session required → atomic update → `{ status: 'admitted' | 'already_used' | 'invalid', guest, checkedInAt, checkedInBy }`
-- `GET /api/guests/search?q=` → usher or admin session
-- `GET /api/stats` → usher or admin session
-- Admin CRUD routes / server actions for guests, CSV import, export, settings, undo check-in
-- `GET /api/qr/[code]` → returns PNG of the QR (public is fine; it only reveals the code the guest already has)
-
-Rate-limit `/api/checkin` and login routes lightly (simple in-memory or per-IP counter is fine) to stop PIN brute-forcing.
-
-## Auth (keep it simple)
-- One organiser account (username + password, see `/admin`); ushers use personal links + PIN (see `/scan`).
-- On login, set a signed httpOnly, secure, sameSite=lax cookie (use `jose` or `iron-session`) with role `admin` or `usher` (+ usher name).
-- Use `middleware.ts` to guard `/admin/*` and `/scan/*` and the matching API routes.
-- Admin role can also use the scanner.
+- `/` landing (no data). App name = `APP_NAME` in `lib/site.ts`.
+- `/login`, `/signup/[token]` (organiser or helper invite; logged-in accounts can "Join as …"), `/admin/login`.
+- `/admin` super admin: overview numbers, organiser invite links, accounts (turn off/on, make organiser/helper,
+  reset password, delete), all events (open, move to another organiser).
+- `/dashboard` an account's events (owned + helping); `/dashboard/events/new` (organisers only);
+  `/dashboard/events/[id]` guests (stats, search, add, Excel/CSV import with preview, WhatsApp/email invite,
+  QR/card download, undo check-in, CSV export); `/[id]/ushers`; `/[id]/team` (owner, helpers, helper invite
+  links); `/[id]/details` (edit, photo, delete by typing DELETE); `/dashboard/account` (password, email).
+- `/invite/[code]` public read-only invite + big QR + Open Graph preview. Never checks in.
+- `/scan` full-screen camera scanner + manual search, locked to one event; results: ADMIT / ALREADY USED / WRONG EVENT / INVALID.
+- APIs: `/api/auth/{login,admin,signup,join,usher,logout}`, `/api/org/...` (events, guests, ushers, team,
+  invites, account), `/api/admin/...` (invites, organisers, events move), `/api/checkin`, `/api/guests/search`,
+  `/api/stats`, `/api/qr/[code]`, `/api/card/[code]`, `/api/og/[code]`, `/api/photo/[publicId]`.
+- Rate limits (in-memory per IP): logins, sign-up, check-in.
 
 ## UI / design
-- Mobile-first. Big tap targets. Scanner result screens fill the whole screen with strong colours readable in sunlight.
-- Elegant wedding look for the invite page (soft colours, serif heading font e.g. Playfair Display via `next/font`); clean and practical for admin/scanner.
-- Wording comes from the event `type` (`lib/eventTypes.ts`); title/date/venue/photo from the `events` row.
-- Light/dark theme via CSS variables in `app/globals.css` + `data-theme` on `<html>`; use `bg-surface`, `text-ink`, `text-on-ink`, never hard-coded white/black outside the scanner. Mobile-first: cards on phones, tables from `md`.
-
-## Folder structure (suggested)
-```
-app/
-  page.tsx
-  invite/[code]/page.tsx
-  admin/(login, dashboard, guests, settings)
-  scan/page.tsx, scan/login/page.tsx
-  api/checkin/route.ts
-  api/guests/search/route.ts
-  api/stats/route.ts
-  api/qr/[code]/route.ts
-lib/
-  db.ts          # db client
-  schema.ts      # drizzle schema
-  auth.ts        # session sign/verify helpers
-  codes.ts       # nanoid generator
-  qr.ts          # qr helpers
-  whatsapp.ts    # wa.me link builder (normalise Nigerian numbers: 080... -> 23480...)
-components/
-middleware.ts
-db/seed.ts
-.env.example
-README.md
-```
+- Mobile-first, big tap targets; scanner result screens fill the screen with strong colours.
+- Elegant invite page (Playfair Display); clean practical organiser screens.
+- Wording from the event `type` (`lib/eventTypes.ts`).
+- Light/dark theme via CSS variables in `app/globals.css` + `data-theme` on `<html>`; use `bg-surface`, `text-ink`,
+  `text-on-ink`, never hard-coded white/black outside the scanner. Cards on phones, tables from `md`.
+- Client components get the public site address from `useSiteUrl()` (`components/SiteUrl.tsx`), never from env.
 
 ## Nigerian phone numbers
 Normalise for `wa.me`: strip spaces/dashes/`+`; `0XXXXXXXXXX` (11 digits) → `234XXXXXXXXXX`; leave `234...` as is.
 
-## Build order
-1. Scaffold Next.js + Tailwind + TypeScript, DB connection, schema, migration, seed.
-2. Auth (admin password + usher PIN, cookies, middleware).
-3. Admin: add/list guests, stats.
-4. Invite page + QR generation.
-5. Scanner page + `/api/checkin` with the atomic update. **Test double-scan and concurrent scans.**
-6. CSV import/export, WhatsApp share, invite card image, undo check-in.
-7. Polish UI, Open Graph tags, README with deploy steps.
-
-## Testing checklist
-- Scanning a fresh code → ADMIT; scanning it again → ALREADY USED with correct time and usher.
-- Two simultaneous check-in requests for the same code → exactly one admitted (write a small script that fires both in parallel).
-- Invalid / random code → INVALID.
-- Guest opening their own invite link many times → never checked in.
-- `/admin` and `/scan` inaccessible without login; API routes return 401.
-- QR scans reliably from a phone screenshot and from a printed card.
-- Works on Android Chrome and iOS Safari (camera permission flow).
+## Testing
+- Start the app (`npm run build && npm start` is more reliable than `npm run dev` for test runs), then
+  `npm run test:organisers` and `npm run test:checkin`. Both log in as super admin with `ADMIN_PASSWORD` from
+  `.env`, create throwaway `zz-…` accounts/events, and clean up. Restart the server between repeated runs
+  (login/sign-up rate limits).
+- Don't run `npm run build` while `npm run dev` is running (they share `.next` and corrupt each other).
+- Still manual: QR scanning from a screenshot and from print; Android Chrome + iOS Safari camera permission.
 
 ## Deployment
-- Push to GitHub → import in Vercel → set env vars → deploy.
-- Run migrations against the production DB before the event.
-- Before the wedding day: do a full rehearsal with 2–3 phones scanning, export a CSV backup, and make sure ushers have mobile data/MiFi.
+- Run `npm run db:migrate` against Supabase **before** pushing code that needs new columns/tables
+  (PowerShell: `$env:DATABASE_URL="<pooler url>"; npm run db:migrate`).
+- Push to GitHub `main` → Vercel deploys automatically.
+- Before an event: rehearsal with 2–3 phones, export CSV backup, ushers log in beforehand, mobile data / MiFi.
 
 ## Coding conventions
-- TypeScript strict mode. Validate all inputs with zod.
-- Server-only code in route handlers/server actions; never expose `DATABASE_URL` or secrets to the client.
-- Keep components small; prefer server components, use client components only for the scanner and interactive forms.
-- Clear error messages in plain English for ushers (no stack traces on screen).
+- TypeScript strict. Validate all inputs with zod. Plain-English error messages (no stack traces on screen).
+- Server-only code in route handlers / server components; never expose `DATABASE_URL` or secrets to the client.
+- Small components; client components only for interactive parts.
+- Keep `README.md` (setup + how to use), `.env.example`, and the **Where we stopped** section above current.

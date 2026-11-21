@@ -30,7 +30,7 @@ export async function uploadEventPhoto(eventId: number, file: File): Promise<str
   }
   const body = new FormData();
   body.append("photo", blob, "photo.jpg");
-  const res = await fetch(`/api/admin/events/${eventId}/photo`, { method: "POST", body }).catch(() => null);
+  const res = await fetch(`/api/org/events/${eventId}/photo`, { method: "POST", body }).catch(() => null);
   const data = await res?.json().catch(() => null);
   if (!res) throw new Error("Upload failed. Check your internet and try again.");
   if (!res.ok) throw new Error(data?.error ?? "Upload failed.");

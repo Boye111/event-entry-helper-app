@@ -15,6 +15,8 @@ export type Guest = {
 
 export type EventDetails = {
   id: number;
+  /** Owner. Null only for events made before organiser accounts existed (super admin sees them). */
+  organiser_id: number | null;
   public_id: string;
   name: string;
   type: string;

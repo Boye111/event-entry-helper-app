@@ -7,14 +7,22 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { useSiteUrl } from "@/components/SiteUrl";
 import { APP_NAME } from "@/lib/site";
 
-/** Top bar for organiser pages. Pass `event` on pages inside one event to show its tabs. */
-export function AdminHeader({ event }: { event?: { id: number; name: string } }) {
+/** Who is looking: an account (organiser or helper) or the super admin. Changes the links in the bar. */
+export type Viewer = "organiser" | "super";
+
+/**
+ * Top bar for organiser, helper and super admin pages. Pass `event` on pages inside one event to show its tabs.
+ * The super admin opens event pages to help; for them "home" is /admin and there is no Account page.
+ */
+export function AdminHeader({ event, viewer = "organiser" }: { event?: { id: number; name: string }; viewer?: Viewer }) {
   const path = usePathname();
-  const base = event ? `/admin/events/${event.id}` : "";
+  const home = viewer === "super" ? "/admin" : "/dashboard";
+  const base = event ? `/dashboard/events/${event.id}` : "";
   const tabs = event
     ? [
         [base, "Guests"],
         [`${base}/ushers`, "Ushers"],
+        [`${base}/team`, "Team"],
         [`${base}/details`, "Details"],
         [`/scan?event=${event.id}`, "Scanner"],
       ]
@@ -23,18 +31,23 @@ export function AdminHeader({ event }: { event?: { id: number; name: string } })
   return (
     <header className="sticky top-0 z-20 border-b border-ink/10 bg-surface/90 backdrop-blur pt-[env(safe-area-inset-top)]">
       <div className="mx-auto flex max-w-6xl items-center gap-2 px-4 py-2.5">
-        <Link href="/admin" className="min-w-0 mr-auto">
-          <span className="block font-serif text-lg leading-tight sm:text-xl">{APP_NAME}</span>
+        <Link href={home} className="min-w-0 mr-auto">
+          <span className="block font-serif text-lg leading-tight sm:text-xl">
+            {APP_NAME}
+            {viewer === "super" && <span className="ml-2 align-middle text-xs font-sans font-semibold text-gold">SUPER ADMIN</span>}
+          </span>
           {event && <span className="block truncate text-xs text-ink/60">{event.name}</span>}
         </Link>
         <ThemeToggle />
-        <Link href="/admin/account" className="rounded-lg px-3 py-2 text-sm text-ink/60 hover:bg-ink/5">
-          Account
-        </Link>
+        {viewer === "organiser" && (
+          <Link href="/dashboard/account" className="rounded-lg px-3 py-2 text-sm text-ink/60 hover:bg-ink/5">
+            Account
+          </Link>
+        )}
         <button
           onClick={async () => {
             await fetch("/api/auth/logout", { method: "POST" });
-            window.location.href = "/admin/login";
+            window.location.href = viewer === "super" ? "/login" : "/login";
           }}
           className="rounded-lg px-3 py-2 text-sm text-ink/60 hover:bg-ink/5"
         >
@@ -43,8 +56,8 @@ export function AdminHeader({ event }: { event?: { id: number; name: string } })
       </div>
       {event && (
         <nav className="mx-auto flex max-w-6xl gap-1 overflow-x-auto px-4 pb-2 [scrollbar-width:none]">
-          <Link href="/admin" className="shrink-0 rounded-lg px-3 py-2 text-sm text-ink/60 hover:bg-ink/5">
-            ← Events
+          <Link href={home} className="shrink-0 rounded-lg px-3 py-2 text-sm text-ink/60 hover:bg-ink/5">
+            {viewer === "super" ? "← Super admin" : "← Events"}
           </Link>
           {tabs.map(([href, label]) => (
             <Link

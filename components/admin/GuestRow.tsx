@@ -42,14 +42,14 @@ function Actions({ guest: g, eventTitle, onEdit, onChanged }: Props) {
 
   async function undo() {
     if (!confirm(`Undo check-in for ${g.name}? Their QR will work again at the gate.`)) return;
-    const res = await fetch(`/api/admin/guests/${g.id}/undo`, { method: "POST" }).catch(() => null);
+    const res = await fetch(`/api/org/guests/${g.id}/undo`, { method: "POST" }).catch(() => null);
     if (!res?.ok) alert("Could not undo. Try again.");
     onChanged();
   }
 
   async function remove() {
     if (!confirm(`Delete ${g.name}? Their QR code will stop working.`)) return;
-    const res = await fetch(`/api/admin/guests/${g.id}`, { method: "DELETE" }).catch(() => null);
+    const res = await fetch(`/api/org/guests/${g.id}`, { method: "DELETE" }).catch(() => null);
     if (!res?.ok) alert("Could not delete. Try again.");
     onChanged();
   }

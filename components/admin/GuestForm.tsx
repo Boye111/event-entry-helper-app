@@ -46,7 +46,7 @@ export function GuestForm({
     e.preventDefault();
     setBusy(true);
     setError(null);
-    const res = await fetch(guest ? `/api/admin/guests/${guest.id}` : `/api/admin/events/${eventId}/guests`, {
+    const res = await fetch(guest ? `/api/org/guests/${guest.id}` : `/api/org/events/${eventId}/guests`, {
       method: guest ? "PATCH" : "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(form),

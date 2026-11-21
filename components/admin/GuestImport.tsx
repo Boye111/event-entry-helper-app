@@ -93,7 +93,7 @@ export function GuestImport({ eventId, onImported }: { eventId: number; onImport
   async function save() {
     if (!rows) return;
     setBusy(true);
-    const res = await fetch(`/api/admin/events/${eventId}/import`, {
+    const res = await fetch(`/api/org/events/${eventId}/import`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ rows }),

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Guest, Stats } from "@/lib/types";
-import { AdminHeader, LocalUrlBanner } from "./AdminHeader";
+import { AdminHeader, LocalUrlBanner, type Viewer } from "./AdminHeader";
 import { GuestForm } from "./GuestForm";
 import { GuestImport } from "./GuestImport";
 import { GuestCard, GuestRow } from "./GuestRow";
@@ -13,7 +13,15 @@ import { card, primaryBtn, secondaryBtn, warnBox } from "./styles";
 type Filter = "all" | "arrived" | "pending";
 type EventInfo = { id: number; name: string; title: string; type: string; hasPhoto: boolean };
 
-export function Dashboard({ event, localSiteUrl }: { event: EventInfo; localSiteUrl: string | null }) {
+export function Dashboard({
+  event,
+  localSiteUrl,
+  viewer,
+}: {
+  event: EventInfo;
+  localSiteUrl: string | null;
+  viewer: Viewer;
+}) {
   const [guests, setGuests] = useState<Guest[] | null>(null);
   const [stats, setStats] = useState<Stats | null>(null);
   const [q, setQ] = useState("");
@@ -29,10 +37,10 @@ export function Dashboard({ event, localSiteUrl }: { event: EventInfo; localSite
     let message: string | null = null;
     try {
       const [g, s] = await Promise.all([
-        fetch(`/api/admin/events/${event.id}/guests`, { cache: "no-store" }),
+        fetch(`/api/org/events/${event.id}/guests`, { cache: "no-store" }),
         fetch(`/api/stats?event=${event.id}`, { cache: "no-store" }),
       ]);
-      if (g.status === 401 || g.status === 403) return void (window.location.href = "/admin/login");
+      if (g.status === 401 || g.status === 403) return void (window.location.href = "/login");
       if (g.ok && s.ok) {
         setGuests((await g.json()).guests);
         setStats(await s.json());
@@ -76,7 +84,7 @@ export function Dashboard({ event, localSiteUrl }: { event: EventInfo; localSite
 
   return (
     <div className="min-h-dvh bg-ivory">
-      <AdminHeader event={event} />
+      <AdminHeader event={event} viewer={viewer} />
       <main className="mx-auto max-w-6xl space-y-5 px-4 py-6">
         {localSiteUrl && <LocalUrlBanner siteUrl={localSiteUrl} />}
         {problem && (
@@ -92,7 +100,7 @@ export function Dashboard({ event, localSiteUrl }: { event: EventInfo; localSite
 
         {!event.hasPhoto && (
           <Link
-            href={`/admin/events/${event.id}/details#photo`}
+            href={`/dashboard/events/${event.id}/details#photo`}
             className={`${card} flex items-center gap-3 p-4 hover:ring-ink/25`}
           >
             <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blush text-lg" aria-hidden>
@@ -115,7 +123,7 @@ export function Dashboard({ event, localSiteUrl }: { event: EventInfo; localSite
           <button onClick={() => setPanel(panel === "import" ? null : "import")} className={secondaryBtn}>
             Import Excel / CSV
           </button>
-          <a href={`/api/admin/events/${event.id}/export`} className={`${secondaryBtn} col-span-2 sm:col-span-1`}>
+          <a href={`/api/org/events/${event.id}/export`} className={`${secondaryBtn} col-span-2 sm:col-span-1`}>
             Export CSV backup
           </a>
         </div>

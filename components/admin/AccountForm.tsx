@@ -17,7 +17,7 @@ export function AccountForm({ email: initialEmail }: { email: string | null }) {
     if (f.next && f.next !== f.confirm) return setMsg({ ok: false, text: "The two new passwords don't match." });
     setBusy(true);
     setMsg(null);
-    const res = await fetch("/api/admin/account", {
+    const res = await fetch("/api/org/account", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ currentPassword: f.current, newPassword: f.next || undefined, email: f.email }),
@@ -26,7 +26,7 @@ export function AccountForm({ email: initialEmail }: { email: string | null }) {
     setBusy(false);
     if (!res?.ok) return setMsg({ ok: false, text: data?.error || "Could not save. Check your internet." });
     setF({ ...f, current: "", next: "", confirm: "" });
-    setMsg({ ok: true, text: f.next ? "Saved. Use your new password next time you log in." : "Saved." });
+    setMsg({ ok: true, text: f.next ? "Saved. Other phones and browsers have been logged out." : "Saved." });
   }
 
   return (

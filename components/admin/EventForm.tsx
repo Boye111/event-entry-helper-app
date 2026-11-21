@@ -34,13 +34,13 @@ export function EventForm({ event }: { event?: EventDetails }) {
     e.preventDefault();
     setBusy(true);
     setStatus(null);
-    const res = await fetch(event ? `/api/admin/events/${event.id}` : "/api/admin/events", {
+    const res = await fetch(event ? `/api/org/events/${event.id}` : "/api/org/events", {
       method: event ? "PATCH" : "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ...form, event_date: fromEventInput(form.event_date) }),
     }).catch(() => null);
     const data = await res?.json().catch(() => null);
-    if (res?.status === 401) return void (window.location.href = "/admin/login");
+    if (res?.status === 401) return void (window.location.href = "/login");
     if (!res?.ok) {
       setBusy(false);
       setStatus({ ok: false, text: data?.error ?? "Could not save. Check your internet and try again." });
@@ -55,11 +55,11 @@ export function EventForm({ event }: { event?: EventDetails }) {
         } catch (err) {
           // The event is saved; send them to Details to try the picture again.
           alert(`Event saved, but the picture didn't upload: ${err instanceof Error ? err.message : "try again"}`);
-          router.push(`/admin/events/${id}/details#photo`);
+          router.push(`/dashboard/events/${id}/details#photo`);
           return;
         }
       }
-      router.push(`/admin/events/${id}`);
+      router.push(`/dashboard/events/${id}`);
       return;
     }
     setBusy(false);

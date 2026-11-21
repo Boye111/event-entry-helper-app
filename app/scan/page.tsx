@@ -1,27 +1,29 @@
 import { redirect } from "next/navigation";
 import { Scanner } from "@/components/scanner/Scanner";
-import { getActiveSession } from "@/lib/auth";
+import { eventAccess, getActiveSession } from "@/lib/auth";
 import { getEvent } from "@/lib/events";
 
 export const metadata = { title: "Scanner", robots: { index: false } };
 export const dynamic = "force-dynamic";
 
-/** Ushers scan for their own event. The admin opens /scan?event=<id> from an event's tabs. */
+/** Ushers scan for their own event. Organisers / helpers / super admin open /scan?event=<id> for an event they may use. */
 export default async function ScanPage({ searchParams }: { searchParams: Promise<{ event?: string }> }) {
   const session = await getActiveSession();
   if (!session) redirect("/scan/login");
 
-  const requested = session.role === "usher" ? session.eventId : Number((await searchParams).event);
-  const event = requested ? await getEvent(requested) : null;
-  if (!event) redirect(session.role === "admin" ? "/admin" : "/scan/login");
+  const event =
+    session.role === "usher"
+      ? await getEvent(session.eventId!)
+      : (await eventAccess(session, Number((await searchParams).event) || null))?.event;
+  if (!event) redirect(session.role === "usher" ? "/scan/login" : session.role === "super" ? "/admin" : "/dashboard");
 
   return (
     <Scanner
       usherName={session.name}
       eventName={event.name}
-      // Only the admin sends an event id; the server ignores it for ushers anyway.
-      eventId={session.role === "admin" ? event.id : null}
-      backHref={session.role === "admin" ? `/admin/events/${event.id}` : null}
+      // Organisers send the event id; the server ignores it for ushers anyway.
+      eventId={session.role === "usher" ? null : event.id}
+      backHref={session.role === "usher" ? null : `/dashboard/events/${event.id}`}
     />
   );
 }

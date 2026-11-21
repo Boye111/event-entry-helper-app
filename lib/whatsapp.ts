@@ -36,3 +36,19 @@ export function usherMessage(opts: { name: string; event: string; link: string; 
     `Allow camera access when asked. This link is only for you, so please don't forward it.`
   );
 }
+
+export function organiserInviteMessage(opts: { appName: string; link: string; days: number }) {
+  return (
+    `Hi! Here is your invite to ${opts.appName}, for QR invitations and gate check-in at your events.\n\n` +
+    `Create your organiser account here (works once, within ${opts.days} day${opts.days === 1 ? "" : "s"}):\n${opts.link}\n\n` +
+    `After that, log in any time with your username and password.`
+  );
+}
+
+export function tempPasswordMessage(opts: { appName: string; username: string; password: string; loginUrl: string }) {
+  return (
+    `Your ${opts.appName} password has been reset.\n\n` +
+    `Username: ${opts.username}\nTemporary password: ${opts.password}\n\n` +
+    `Log in at ${opts.loginUrl} and change it under Account.`
+  );
+}

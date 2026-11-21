@@ -14,8 +14,8 @@ export function Ushers({ eventId, eventName }: { eventId: number; eventName: str
 
   const load = useCallback(async () => {
     try {
-      const res = await fetch(`/api/admin/events/${eventId}/ushers`, { cache: "no-store" });
-      if (res.status === 401 || res.status === 403) return void (window.location.href = "/admin/login");
+      const res = await fetch(`/api/org/events/${eventId}/ushers`, { cache: "no-store" });
+      if (res.status === 401 || res.status === 403) return void (window.location.href = "/login");
       if (res.ok) setUshers((await res.json()).ushers);
       setError(null);
     } catch {
@@ -59,7 +59,7 @@ function AddUsher({ eventId, onAdded }: { eventId: number; onAdded: () => void }
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch(`/api/admin/events/${eventId}/ushers`, {
+      const res = await fetch(`/api/org/events/${eventId}/ushers`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name, phone }),
@@ -139,15 +139,15 @@ function UsherCard({ usher: u, eventName, onChanged }: { usher: Usher; eventName
 
   function toggle() {
     if (u.active && !confirm(`Turn off ${u.name}? Their phone will stop scanning immediately.`)) return;
-    void call(`/api/admin/ushers/${u.id}`, "PATCH", { active: !u.active });
+    void call(`/api/org/ushers/${u.id}`, "PATCH", { active: !u.active });
   }
   function reset() {
     if (!confirm(`Give ${u.name} a new link and PIN? The old link stops working and they must log in again.`)) return;
-    void call(`/api/admin/ushers/${u.id}/reset`, "POST");
+    void call(`/api/org/ushers/${u.id}/reset`, "POST");
   }
   function remove() {
     if (!confirm(`Delete ${u.name}? Guests they admitted stay checked in.`)) return;
-    void call(`/api/admin/ushers/${u.id}`, "DELETE");
+    void call(`/api/org/ushers/${u.id}`, "DELETE");
   }
 
   const status = [

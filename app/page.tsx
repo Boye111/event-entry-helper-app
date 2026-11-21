@@ -28,7 +28,7 @@ export default function Home() {
       <header className="mx-auto flex max-w-6xl items-center gap-3 px-5 py-4 pt-[max(1rem,env(safe-area-inset-top))]">
         <span className="mr-auto font-serif text-xl">{APP_NAME}</span>
         <ThemeToggle />
-        <Link href="/admin/login" className="rounded-lg bg-ink px-4 py-2 text-sm font-semibold text-on-ink">
+        <Link href="/login" className="rounded-lg bg-ink px-4 py-2 text-sm font-semibold text-on-ink">
           Organiser login
         </Link>
       </header>
@@ -45,14 +45,14 @@ export default function Home() {
             each QR works exactly once.
           </p>
           <div className="mt-8 flex flex-wrap justify-center gap-3">
-            <Link href="/admin/login" className="rounded-xl bg-ink px-6 py-3.5 font-semibold text-on-ink">
+            <Link href="/login" className="rounded-xl bg-ink px-6 py-3.5 font-semibold text-on-ink">
               Organiser login
             </Link>
             <a href="#how" className="rounded-xl px-6 py-3.5 font-medium ring-1 ring-ink/15 hover:bg-ink/5">
               How it works
             </a>
           </div>
-          <p className="mt-4 text-sm text-ink/50">Accounts for other organisers are coming soon.</p>
+          <p className="mt-4 text-sm text-ink/50">Got an invite link? Open it to create your organiser account.</p>
         </section>
 
         <section id="how" className="mx-auto max-w-6xl px-5 py-12">

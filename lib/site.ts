@@ -16,3 +16,12 @@ export function joinUsher(base: string, token: string): string {
 export function isLocalUrl(url: string): boolean {
   return /\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0|192\.168\.|10\.)/.test(url);
 }
+
+export function joinSignup(base: string, token: string): string {
+  return `${base}/signup/${token}`;
+}
+
+/** Only same-site paths after login (stops /login?next=https://evil.example). */
+export function safeNext(next: string | null | undefined): string | undefined {
+  return next && next.startsWith("/") && !next.startsWith("//") && !next.startsWith("/\\") ? next : undefined;
+}

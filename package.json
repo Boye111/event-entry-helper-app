@@ -9,7 +9,8 @@
     "lint": "eslint",
     "db:migrate": "tsx db/migrate.ts",
     "db:seed": "tsx db/seed.ts",
-    "test:checkin": "tsx scripts/test-checkin.ts"
+    "test:checkin": "tsx scripts/test-checkin.ts",
+    "test:organisers": "tsx scripts/test-organisers.ts"
   },
   "dependencies": {
     "html5-qrcode": "^2.3.8",
